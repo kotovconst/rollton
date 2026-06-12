@@ -8,6 +8,11 @@
 *.out
 coverage.out
 bot/bin/
+bot/tmp/
+# Binaries produced by ad-hoc `go build ./...` from bot/ land at module root
+bot/rolltonchatbot
+bot/bot-b
+bot/bot-a
 
 # Env / secrets
 .env
