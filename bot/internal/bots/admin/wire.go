@@ -1,5 +1,5 @@
-// Package bot_b composes the bot_b bot from its handlers and shared deps.
-package bot_b
+// Package admin composes the admin bot from its handlers and shared deps.
+package admin
 
 import (
 	"context"
@@ -8,8 +8,8 @@ import (
 	httpstd "net/http"
 	"time"
 
-	httph "github.com/kotovconst/rollton/bot/internal/bots/bot_b/handlers/http"
-	tgh "github.com/kotovconst/rollton/bot/internal/bots/bot_b/handlers/telegram"
+	httph "github.com/kotovconst/rollton/bot/internal/bots/admin/handlers/http"
+	tgh "github.com/kotovconst/rollton/bot/internal/bots/admin/handlers/telegram"
 	"github.com/kotovconst/rollton/bot/internal/config"
 	"github.com/kotovconst/rollton/bot/internal/middleware"
 	"github.com/kotovconst/rollton/bot/pkg/tgbot"
@@ -30,7 +30,7 @@ type App struct {
 func NewApp(deps Deps) (*App, error) {
 	b, err := tgbot.New(deps.Cfg.TelegramToken)
 	if err != nil {
-		return nil, fmt.Errorf("bot_b: %w", err)
+		return nil, fmt.Errorf("admin: %w", err)
 	}
 	b.Use(middleware.Telegram(deps.Log))
 

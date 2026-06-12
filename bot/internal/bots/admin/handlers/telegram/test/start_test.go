@@ -3,7 +3,7 @@ package test
 import (
 	"testing"
 
-	tgh "github.com/kotovconst/rollton/bot/internal/bots/bot_b/handlers/telegram"
+	tgh "github.com/kotovconst/rollton/bot/internal/bots/admin/handlers/telegram"
 	"github.com/stretchr/testify/require"
 )
 

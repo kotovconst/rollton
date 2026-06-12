@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	bota "github.com/kotovconst/rollton/bot/internal/bots/bot_b"
+	bota "github.com/kotovconst/rollton/bot/internal/bots/admin"
 	"github.com/kotovconst/rollton/bot/internal/config"
 )
 
@@ -18,7 +18,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	log := newLogger(cfg.Log.Format, cfg.Log.Level).With("bot", "bot_b")
+	log := newLogger(cfg.Log.Format, cfg.Log.Level).With("bot", "admin")
 
 	app, err := bota.NewApp(bota.Deps{Cfg: cfg, Log: log})
 	if err != nil {
