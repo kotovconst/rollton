@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: rollton-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rollton}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rollton_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-rollton}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - rollton_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rollton}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rolltonchatbot:
+    build:
+      context: .
+      args:
+        BOT: rolltonchatbot
+    container_name: rollton-rolltonchatbot
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-rollton}:${POSTGRES_PASSWORD:-rollton_pass}@postgres:5432/${POSTGRES_DB:-rollton}?sslmode=disable
+      HTTP_PORT: 8080
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      TELEGRAM_TOKEN: ${TOKEN_ROLLTONCHATBOT}
+    ports:
+      - "8080:8080"
+    profiles: ["app"]
+
+  bot-b:
+    build:
+      context: .
+      args:
+        BOT: bot-b
+    container_name: rollton-bot-b
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-rollton}:${POSTGRES_PASSWORD:-rollton_pass}@postgres:5432/${POSTGRES_DB:-rollton}?sslmode=disable
+      HTTP_PORT: 8081
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      TELEGRAM_TOKEN: ${TOKEN_BOT_B}
+    ports:
+      - "8081:8081"
+    profiles: ["app"]
+
+volumes:
+  rollton_pg:
