@@ -47,6 +47,8 @@ make schema-dump                       # uses scripts/schema-dump.sh
 make sqlc-gen                          # writes to pkg/sqlc/postgres/
 ```
 
+Note: `sqlc-gen` errors until the first `.sql` file lands in `db/queries/`. Add your first query (and the matching schema in `db/schema/schema.sql` via `make schema-dump`) before running it.
+
 ## Tests
 
 ```bash

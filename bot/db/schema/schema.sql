@@ -1,0 +1,2 @@
+-- Canonical schema snapshot. Regenerated from db/migrations by `make schema-dump`.
+-- Intentionally empty until the first migration is added.
