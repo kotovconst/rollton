@@ -1,0 +1,36 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug rolltonchatbot",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/bot/cmd/rolltonchatbot",
+      "cwd": "${workspaceFolder}/bot",
+      "envFile": "${workspaceFolder}/bot/.env.rolltonchatbot",
+      "env": {
+        "LOG_FORMAT": "text"
+      }
+    },
+    {
+      "name": "Debug admin",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/bot/cmd/admin",
+      "cwd": "${workspaceFolder}/bot",
+      "envFile": "${workspaceFolder}/bot/.env.admin",
+      "env": {
+        "LOG_FORMAT": "text"
+      }
+    },
+    {
+      "name": "Debug current Go test",
+      "type": "go",
+      "request": "launch",
+      "mode": "test",
+      "program": "${file}"
+    }
+  ]
+}

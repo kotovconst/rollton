@@ -16,7 +16,10 @@ bot/bot-a
 
 # Env / secrets
 .env
+.env.local
 .env.*.local
+.env.rolltonchatbot
+.env.admin
 
 # Build artifacts
 dist/
