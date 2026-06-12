@@ -1,0 +1,17 @@
+# Editors
+.idea/
+.DS_Store
+*.swp
+
+# Go
+*.test
+*.out
+coverage.out
+bot/bin/
+
+# Env / secrets
+.env
+.env.*.local
+
+# Build artifacts
+dist/
