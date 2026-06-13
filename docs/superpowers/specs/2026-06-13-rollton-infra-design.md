@@ -34,7 +34,7 @@ Hard constraints:
 | TLS for bot API | Caddy on the EC2 with Let's Encrypt | Free, automatic, no ACM needed |
 | Secrets at runtime | AWS Systems Manager Parameter Store (`/rollton/...`) | Free for standard params; KMS-encrypted for SecureString |
 | Secrets in CI | GitHub Actions OIDC → IAM role assumption | No long-lived AWS keys in GitHub |
-| Terraform state | S3 backend + DynamoDB lock | Bootstrap step (chicken-and-egg with Terraform) |
+| Terraform state | S3 backend with native S3 locking (`use_lockfile = true`, Terraform ≥ 1.10) | Bootstrap step (chicken-and-egg with Terraform); no DynamoDB needed |
 | Environments | Single `prod` only for now | YAGNI; add `staging` when scale demands it |
 | Multi-AZ | No (RDS subnet group spans two AZs because RDS requires it, but RDS itself is single-AZ) | Cost; downtime tolerance is hours, not minutes |
 | Backups | RDS automated backups, 7-day retention | Default; sufficient for pre-revenue |
@@ -177,24 +177,26 @@ Three workflows, each scoped by `paths:` filter:
 
 ## 6. State backend (chicken-and-egg)
 
-Terraform state lives in S3 with DynamoDB locking. The S3 bucket + DynamoDB table can't be created by the same Terraform that uses them as a backend, so the bootstrap step is separate:
+Terraform state lives in S3 with **native S3 locking** (Terraform ≥ 1.10's `use_lockfile = true`). No DynamoDB table needed — S3 conditional writes handle concurrent-apply protection. The S3 bucket can't be created by the same Terraform that uses it as a backend, so the bootstrap step is separate:
 
 1. **Manual one-time bootstrap:**
    ```
    cd infra/bootstrap
    terraform init                  # local state
-   terraform apply                 # creates S3 bucket + DynamoDB table
+   terraform apply                 # creates S3 bucket (versioned, encrypted)
    ```
-   Output: bucket name, table name. Stored in the operator's notes; not committed.
+   Output: bucket name. Stored in the operator's notes and in `infra/envs/prod/backend.tf`.
 
-2. **Main config uses them via backend:**
+2. **Main config uses it via backend:**
    ```
    cd infra/envs/prod
-   terraform init                  # reads backend.tf → S3
+   terraform init                  # reads backend.tf → S3 (with use_lockfile = true)
    terraform plan / apply          # reads/writes state in S3
    ```
 
 Bootstrap's own `terraform.tfstate` is gitignored. The bucket itself outlives any future re-bootstrap.
+
+Required versions: `terraform >= 1.10`, AWS provider `>= 5.50`.
 
 ## 7. Data flow & deploy
 
