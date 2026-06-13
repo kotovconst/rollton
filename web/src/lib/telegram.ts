@@ -1,9 +1,7 @@
 // Thin facade over window.Telegram.WebApp so the rest of the app
-// never touches the global directly. Hook variants subscribe via
-// React state on mount; the WebApp object itself is mutable but
-// initData / user don't change after init, so a single read is enough.
-
-import { useEffect, useState } from 'react'
+// never touches the global directly. Telegram's `telegram-web-app.js`
+// loads synchronously in index.html, so by the time React mounts the
+// global is populated. Hooks just return live values — no state needed.
 
 export interface TelegramUser {
   id: number
@@ -43,19 +41,13 @@ export function openCharacterBot(username: string, payload: string): void {
 }
 
 export function useTelegramUser(): TelegramUser | null {
-  const [user, setUser] = useState<TelegramUser | null>(getTelegramUser())
-  useEffect(() => setUser(getTelegramUser()), [])
-  return user
+  return getTelegramUser()
 }
 
 export function useInitDataRaw(): string {
-  const [raw, setRaw] = useState<string>(getInitDataRaw())
-  useEffect(() => setRaw(getInitDataRaw()), [])
-  return raw
+  return getInitDataRaw()
 }
 
 export function useIsTelegramEnv(): boolean {
-  const [v, setV] = useState<boolean>(isTelegramEnv())
-  useEffect(() => setV(isTelegramEnv()), [])
-  return v
+  return isTelegramEnv()
 }
