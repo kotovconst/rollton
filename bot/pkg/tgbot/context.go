@@ -21,6 +21,16 @@ func newContext(ctx context.Context, api *tgbotapi.BotAPI, upd tgbotapi.Update) 
 // Ctx returns the request-scoped context (cancelled on shutdown).
 func (c *Context) Ctx() context.Context { return c.ctx }
 
+// SetCtx replaces the request-scoped context. Used by middlewares that need
+// to attach request-scoped values (e.g. the authenticated user).
+func (c *Context) SetCtx(ctx context.Context) { c.ctx = ctx }
+
+// NewTestContext constructs a Context for use in tests outside this package.
+// Production code uses newContext (unexported) via Bot.Run.
+func NewTestContext(ctx context.Context, upd tgbotapi.Update) *Context {
+	return newContext(ctx, nil, upd)
+}
+
 // API exposes the raw client for things the wrapper doesn't cover.
 func (c *Context) API() *tgbotapi.BotAPI { return c.api }
 
