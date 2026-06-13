@@ -11,9 +11,9 @@ export default defineConfig({
     },
   },
   test: {
-    environment: 'jsdom',
+    environment: 'happy-dom',
     globals: true,
     setupFiles: ['./src/test/setup.tsx'],
-    css: true,
+    css: false,
   },
 })
