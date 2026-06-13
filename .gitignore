@@ -23,3 +23,10 @@ bot/bot-a
 
 # Build artifacts
 dist/
+
+# Web
+web/node_modules/
+web/dist/
+web/.env.local
+web/.env.*.local
+web/coverage/
