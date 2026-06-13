@@ -11,14 +11,17 @@ import (
 	httph "github.com/kotovconst/rollton/bot/internal/bots/admin/handlers/http"
 	tgh "github.com/kotovconst/rollton/bot/internal/bots/admin/handlers/telegram"
 	"github.com/kotovconst/rollton/bot/internal/config"
+	"github.com/kotovconst/rollton/bot/internal/core/services"
 	"github.com/kotovconst/rollton/bot/internal/middleware"
 	"github.com/kotovconst/rollton/bot/pkg/tgbot"
 	"golang.org/x/sync/errgroup"
 )
 
 type Deps struct {
-	Cfg config.Config
-	Log *slog.Logger
+	Cfg            config.Config
+	Log            *slog.Logger
+	UserSvc        *services.UserService
+	AllowedUserIDs []int64 // ADMIN_ALLOWED_USER_IDS — empty = reject everyone
 }
 
 type App struct {
@@ -33,6 +36,8 @@ func NewApp(deps Deps) (*App, error) {
 		return nil, fmt.Errorf("admin: %w", err)
 	}
 	b.Use(middleware.Telegram(deps.Log))
+	b.Use(middleware.EnsureUserRegistered(deps.UserSvc, deps.Log))
+	b.Use(middleware.AllowOnlyUserIDs(deps.AllowedUserIDs, deps.Log))
 
 	start := tgh.NewStartHandler()
 	b.Router().Handle("start", start.Handle)
