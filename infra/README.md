@@ -54,3 +54,84 @@ terraform apply
 ```
 
 In CI, `infra.yml` does this automatically with manual approval gated by GitHub's `environment: production`.
+
+## End-to-end first-time setup runbook
+
+The order matters — some steps depend on outputs of earlier steps.
+
+### 0. Prerequisites
+
+- AWS account, admin IAM user with access keys configured locally (for bootstrap + first apply)
+- Cloudflare account, domain `rollton.com` added to it with nameservers set at the registrar
+- Cloudflare API token with `Zone:DNS:Edit` on the zone
+- SSH key pair on your machine (`ssh-keygen -t ed25519 -C operator@rollton`)
+- The `rolltonchatbot/admin` Docker images pushed to GHCR via `bot.yml` workflow at least once (or build & push manually)
+
+### 1. Bootstrap state bucket
+
+```bash
+cd infra/bootstrap
+terraform init
+terraform apply -var "state_bucket_name=rollton-tfstate-<YOUR_AWS_ACCOUNT_ID>"
+```
+
+Copy the bucket name into `infra/envs/prod/backend.tf` (replace the `rollton-tfstate` placeholder).
+
+### 2. First apply of the main config
+
+```bash
+cd infra/envs/prod
+cp terraform.tfvars.example terraform.tfvars   # fill values
+terraform init                                 # uses S3 backend now
+terraform apply
+```
+
+### 3. Populate manually-set SSM parameters
+
+```bash
+aws ssm put-parameter --region eu-central-1 --overwrite \
+  --name /rollton/prod/rolltonchatbot/telegram_token \
+  --type SecureString \
+  --value "8833471135:..."
+
+aws ssm put-parameter --region eu-central-1 --overwrite \
+  --name /rollton/prod/admin/telegram_token \
+  --type SecureString \
+  --value "..."
+```
+
+Then SSH in and trigger a re-fetch:
+
+```bash
+ssh ec2-user@$(terraform output -raw bot_host_public_ip)
+sudo systemctl start rollton-env.service
+sudo systemctl restart rollton-compose.service
+```
+
+### 4. Configure GitHub repo secrets (used by workflows)
+
+- `AWS_OIDC_ROLE_ARN`: from `terraform output github_actions_role_arn`
+- `EC2_HOST`: from `terraform output bot_host_public_ip`
+- `EC2_SSH_KEY`: contents of your private key (`~/.ssh/id_ed25519`, no passphrase)
+- `CLOUDFLARE_API_TOKEN`: the API token used locally
+
+### 5. Configure Cloudflare Pages (one-time)
+
+Cloudflare dashboard → Pages → "Connect to Git" → select `kotovconst/rollton`:
+
+- Production branch: `main`
+- Root directory: `web`
+- Build command: `npm ci && npm run build`
+- Output directory: `dist`
+- Environment variable: `NODE_VERSION=20`
+
+After the first deploy, note the `*.pages.dev` URL and update `cloudflare_pages_cname` in `terraform.tfvars`; re-apply.
+
+### 6. Tell Telegram where the mini app is
+
+`@BotFather → /setmenubutton → rolltonchatbot → https://app.rollton.com → "Open Rollton"`.
+
+### 7. Verify
+
+- `curl https://api.rollton.com/healthz` should return the JSON envelope.
+- Open `rolltonchatbot` in Telegram, tap the menu button — the mini app should load.
