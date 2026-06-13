@@ -6,9 +6,14 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	bota "github.com/kotovconst/rollton/bot/internal/bots/rolltonchatbot"
 	"github.com/kotovconst/rollton/bot/internal/config"
+	"github.com/kotovconst/rollton/bot/internal/core/services"
+	"github.com/kotovconst/rollton/bot/pkg/sqlc/postgres"
 )
 
 func main() {
@@ -20,14 +25,31 @@ func main() {
 
 	log := newLogger(cfg.Log.Format, cfg.Log.Level).With("bot", "rolltonchatbot")
 
-	app, err := bota.NewApp(bota.Deps{Cfg: cfg, Log: log})
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	pool, err := pgxpool.New(ctx, cfg.DB.URL)
+	if err != nil {
+		log.Error("db_pool_init_failed", "err", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
+
+	pingCtx, cancelPing := context.WithTimeout(ctx, 5*time.Second)
+	if err := pool.Ping(pingCtx); err != nil {
+		log.Warn("db_ping_failed", "err", err) // continue: long-poll still works
+	}
+	cancelPing()
+
+	queries := postgres.New(pool)
+	userRepo := postgres.NewUserRepoPg(queries)
+	userSvc := services.NewUserService(userRepo)
+
+	app, err := bota.NewApp(bota.Deps{Cfg: cfg, Log: log, UserSvc: userSvc})
 	if err != nil {
 		log.Error("app_init_failed", "err", err)
 		os.Exit(1)
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
 
 	if err := app.Run(ctx); err != nil && err != context.Canceled {
 		log.Error("app_run_failed", "err", err)
