@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+set -euxo pipefail
+
+dnf update -y
+dnf install -y docker jq
+
+# Docker
+systemctl enable --now docker
+usermod -aG docker ec2-user
+
+# docker compose plugin
+mkdir -p /usr/local/lib/docker/cli-plugins
+curl -sSL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-aarch64" \
+  -o /usr/local/lib/docker/cli-plugins/docker-compose
+chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+# Caddy (TLS reverse proxy with automatic Let's Encrypt)
+CADDY_VERSION="2.8.4"
+curl -sSL "https://github.com/caddyserver/caddy/releases/download/v$${CADDY_VERSION}/caddy_$${CADDY_VERSION}_linux_arm64.tar.gz" | tar -xz -C /usr/local/bin caddy
+chmod +x /usr/local/bin/caddy
+groupadd --system caddy || true
+useradd --system --gid caddy --create-home --home-dir /var/lib/caddy --shell /usr/sbin/nologin caddy || true
+mkdir -p /etc/caddy /var/log/caddy
+
+cat > /etc/caddy/Caddyfile <<CADDY
+${api_domain} {
+  reverse_proxy localhost:8080
+  log {
+    output file /var/log/caddy/access.log
+  }
+}
+CADDY
+
+cat > /etc/systemd/system/caddy.service <<SVC
+[Unit]
+Description=Caddy
+After=network.target
+
+[Service]
+User=caddy
+Group=caddy
+ExecStart=/usr/local/bin/caddy run --config /etc/caddy/Caddyfile
+ExecReload=/usr/local/bin/caddy reload --config /etc/caddy/Caddyfile
+Restart=on-failure
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target
+SVC
+
+mkdir -p /opt/rollton
+chown ec2-user:ec2-user /opt/rollton
+
+cat > /opt/rollton/docker-compose.yml <<'COMPOSE'
+services:
+%{ for bot in bots ~}
+  ${bot.name}:
+    image: ghcr.io/${ghcr_owner}/rollton-${bot.name}:${bot.tag}
+    container_name: rollton-${bot.name}
+    restart: unless-stopped
+    env_file:
+      - .env.${bot.name}
+    ports:
+      - "${bot.port}:${bot.port}"
+%{ endfor ~}
+COMPOSE
+
+cat > /usr/local/bin/rollton-fetch-env.sh <<'FETCH'
+#!/usr/bin/env bash
+set -e
+AWS_REGION="${aws_region}"
+SSM_PREFIX="${ssm_prefix}"
+DB_URL=$(aws ssm get-parameter --region "$AWS_REGION" --name "$SSM_PREFIX/database_url" --with-decryption --query Parameter.Value --output text)
+%{ for bot in bots ~}
+TOKEN=$(aws ssm get-parameter --region "$AWS_REGION" --name "$SSM_PREFIX/${bot.name}/telegram_token" --with-decryption --query Parameter.Value --output text 2>/dev/null || echo "")
+cat > /opt/rollton/.env.${bot.name} <<EOF
+TELEGRAM_TOKEN=$TOKEN
+DATABASE_URL=$DB_URL
+HTTP_PORT=${bot.port}
+LOG_LEVEL=info
+LOG_FORMAT=json
+EOF
+%{ endfor ~}
+chmod 600 /opt/rollton/.env.*
+chown ec2-user:ec2-user /opt/rollton/.env.*
+FETCH
+chmod +x /usr/local/bin/rollton-fetch-env.sh
+
+cat > /etc/systemd/system/rollton-env.service <<SVC
+[Unit]
+Description=Fetch Rollton secrets from SSM into /opt/rollton/.env.*
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/rollton-fetch-env.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+SVC
+
+cat > /etc/systemd/system/rollton-compose.service <<SVC
+[Unit]
+Description=Rollton bots (Docker Compose)
+Requires=rollton-env.service docker.service
+After=rollton-env.service docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/rollton
+ExecStart=/usr/bin/docker compose up -d --remove-orphans --pull always
+ExecStop=/usr/bin/docker compose down
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+SVC
+
+systemctl daemon-reload
+systemctl enable --now caddy.service
+systemctl enable --now rollton-env.service
+systemctl enable --now rollton-compose.service
