@@ -1038,6 +1038,146 @@ git commit -m "feat(bot): EnsureUserRegistered middleware + UserFromContext help
 
 ---
 
+## Task 7b: Allowlist middleware (for admin bot) with TDD
+
+**Files:**
+- Create: `bot/internal/middleware/allowlist.go`
+- Create: `bot/internal/middleware/test/allowlist_test.go`
+
+- [ ] **Step 1: Write the failing test**
+
+Create `bot/internal/middleware/test/allowlist_test.go`:
+
+```go
+package test
+
+import (
+	"log/slog"
+	"os"
+	"testing"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/stretchr/testify/require"
+
+	"github.com/kotovconst/rollton/bot/internal/middleware"
+	"github.com/kotovconst/rollton/bot/pkg/tgbot"
+)
+
+var allowlistLog = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError + 1}))
+
+func msgFrom(id int64) tgbotapi.Update {
+	return tgbotapi.Update{
+		Message: &tgbotapi.Message{
+			From: &tgbotapi.User{ID: id, FirstName: "X"},
+			Chat: &tgbotapi.Chat{ID: id},
+		},
+	}
+}
+
+func TestAllowOnlyUserIDs_AllowsListedUser(t *testing.T) {
+	mw := middleware.AllowOnlyUserIDs([]int64{100, 200}, allowlistLog)
+	c := tgbot.NewTestContext(t.Context(), msgFrom(100))
+
+	called := false
+	require.NoError(t, mw(func(*tgbot.Context) error { called = true; return nil })(c))
+	require.True(t, called)
+}
+
+func TestAllowOnlyUserIDs_RejectsUnknownUser(t *testing.T) {
+	mw := middleware.AllowOnlyUserIDs([]int64{100}, allowlistLog)
+	c := tgbot.NewTestContext(t.Context(), msgFrom(999))
+
+	called := false
+	require.NoError(t, mw(func(*tgbot.Context) error { called = true; return nil })(c))
+	require.False(t, called)
+}
+
+func TestAllowOnlyUserIDs_EmptyListRejectsAll(t *testing.T) {
+	mw := middleware.AllowOnlyUserIDs(nil, allowlistLog)
+	c := tgbot.NewTestContext(t.Context(), msgFrom(100))
+
+	called := false
+	require.NoError(t, mw(func(*tgbot.Context) error { called = true; return nil })(c))
+	require.False(t, called)
+}
+
+func TestAllowOnlyUserIDs_NoSender_DropsSilently(t *testing.T) {
+	mw := middleware.AllowOnlyUserIDs([]int64{100}, allowlistLog)
+	c := tgbot.NewTestContext(t.Context(), tgbotapi.Update{})
+
+	called := false
+	require.NoError(t, mw(func(*tgbot.Context) error { called = true; return nil })(c))
+	require.False(t, called)
+}
+```
+
+(Note: `t.Context()` is Go 1.24+. If on Go 1.22, use `context.Background()` and `import "context"`.)
+
+- [ ] **Step 2: Run, expect compile-fail**
+
+```bash
+cd /Users/konstantinkotau/Desktop/projects.com/rollton/bot
+go test ./internal/middleware/test/... -run AllowOnly 2>&1 | tail -5
+```
+Expected: `middleware.AllowOnlyUserIDs undefined`.
+
+- [ ] **Step 3: Write `bot/internal/middleware/allowlist.go`**
+
+```go
+package middleware
+
+import (
+	"log/slog"
+
+	"github.com/kotovconst/rollton/bot/pkg/tgbot"
+)
+
+// AllowOnlyUserIDs is a tgbot.Middleware that drops any update whose sender's
+// Telegram ID is not in `allowed`. Drops include: (a) updates with no sender
+// (channel posts, edits), (b) sender not in the allowlist, (c) empty allowlist.
+// Rejected updates are logged at INFO and produce no reply.
+func AllowOnlyUserIDs(allowed []int64, log *slog.Logger) tgbot.Middleware {
+	set := make(map[int64]struct{}, len(allowed))
+	for _, id := range allowed {
+		set[id] = struct{}{}
+	}
+	return func(next tgbot.HandlerFunc) tgbot.HandlerFunc {
+		return func(c *tgbot.Context) error {
+			tg := c.Update.SentFrom()
+			if tg == nil {
+				log.Info("allowlist_drop_no_sender", "update_id", c.Update.UpdateID)
+				return nil
+			}
+			if _, ok := set[tg.ID]; !ok {
+				log.Info("allowlist_rejected",
+					"telegram_id", tg.ID,
+					"username", tg.UserName,
+					"update_id", c.Update.UpdateID)
+				return nil
+			}
+			return next(c)
+		}
+	}
+}
+```
+
+- [ ] **Step 4: Run tests, expect PASS**
+
+```bash
+go test -race -short ./internal/middleware/... -v 2>&1 | tail -15
+```
+Expected: 4 allowlist tests + the 3 auth tests from Task 7 = 7 PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+cd /Users/konstantinkotau/Desktop/projects.com/rollton
+git add bot/internal/middleware/
+git commit -m "feat(bot): add AllowOnlyUserIDs middleware for admin gating"
+```
+
+---
+
 ## Task 8: Open DB connection + wire into rolltonchatbot
 
 **Files:**
@@ -1319,36 +1459,26 @@ git commit -m "feat(bot): personalize /start reply using authed user"
 
 ---
 
-## Task 10: Mirror to admin bot
+## Task 10: Mirror to admin bot + wire the allowlist gate
 
 **Files:**
 - Modify: `bot/internal/bots/admin/wire.go`
 - Modify: `bot/cmd/admin/main.go`
 - Modify: `bot/internal/bots/admin/handlers/telegram/start_handler.go`
 - Modify: `bot/internal/bots/admin/handlers/telegram/test/start_test.go`
+- Modify: `bot/.env.example`, `bot/.env`, `bot/.env.admin`
 
-- [ ] **Step 1: Mirror Task 8's changes for admin**
-
-Use the same content for `bot/internal/bots/admin/wire.go` and `bot/cmd/admin/main.go` as in Task 8, but with `s/rolltonchatbot/admin/g` applied — including the package name, the alias `bota`, and the With("bot", ...) string. The fastest mechanical path:
+- [ ] **Step 1: Copy rolltonchatbot's wire + main, substitute names**
 
 ```bash
 cd /Users/konstantinkotau/Desktop/projects.com/rollton/bot
-LC_ALL=C find internal/bots/admin cmd/admin -type f -name '*.go' -print0 | xargs -0 \
-  sed -i '' -e 's|rolltonchatbot|admin|g'
-```
-
-Wait — that would rewrite the *new* code we're about to write, which doesn't exist yet in admin. Manual paste is safer. Copy from rolltonchatbot and substitute:
-
-```bash
 cp internal/bots/rolltonchatbot/wire.go        internal/bots/admin/wire.go
 cp cmd/rolltonchatbot/main.go                   cmd/admin/main.go
 LC_ALL=C find internal/bots/admin cmd/admin -type f -name '*.go' -print0 | xargs -0 \
   sed -i '' -e 's|rolltonchatbot|admin|g'
 ```
 
-(`bot_b` is no longer in any of these files; `admin` is the only target.)
-
-- [ ] **Step 2: Mirror Task 9's start_handler + test for admin**
+- [ ] **Step 2: Mirror the start handler + test**
 
 ```bash
 cp internal/bots/rolltonchatbot/handlers/telegram/start_handler.go \
@@ -1359,21 +1489,108 @@ LC_ALL=C find internal/bots/admin/handlers -type f -name '*.go' -print0 | xargs 
   sed -i '' -e 's|rolltonchatbot|admin|g'
 ```
 
-- [ ] **Step 3: Build + test**
+- [ ] **Step 3: Add `AllowedUserIDs` to admin's `Deps` and register the middleware**
+
+Open `bot/internal/bots/admin/wire.go`. Modify `Deps` and `NewApp`:
+
+```go
+type Deps struct {
+	Cfg            config.Config
+	Log            *slog.Logger
+	UserSvc        *services.UserService
+	AllowedUserIDs []int64 // ADMIN_ALLOWED_USER_IDS — empty = reject everyone
+}
+```
+
+Inside `NewApp`, register the allowlist *after* `EnsureUserRegistered` (so the users table still captures any sender, but only allowlisted IDs reach handlers):
+
+```go
+b.Use(middleware.Telegram(deps.Log))
+b.Use(middleware.EnsureUserRegistered(deps.UserSvc, deps.Log))
+b.Use(middleware.AllowOnlyUserIDs(deps.AllowedUserIDs, deps.Log))
+```
+
+- [ ] **Step 4: Parse `ADMIN_ALLOWED_USER_IDS` in `cmd/admin/main.go`**
+
+Open `bot/cmd/admin/main.go`. Add this helper above `main`:
+
+```go
+// parseAllowedUserIDs reads ADMIN_ALLOWED_USER_IDS (comma-separated int64s).
+// Empty string → empty slice → middleware rejects everyone.
+func parseAllowedUserIDs(raw string) []int64 {
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	ids := make([]int64, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		n, err := strconv.ParseInt(p, 10, 64)
+		if err != nil {
+			continue
+		}
+		ids = append(ids, n)
+	}
+	return ids
+}
+```
+
+Add `"strconv"` and `"strings"` to imports.
+
+Inside `main`, after `userSvc := ...`, add:
+
+```go
+allowedIDs := parseAllowedUserIDs(os.Getenv("ADMIN_ALLOWED_USER_IDS"))
+log.Info("admin_allowlist_loaded", "count", len(allowedIDs))
+```
+
+Then update the `NewApp` call:
+
+```go
+app, err := bota.NewApp(bota.Deps{
+	Cfg:            cfg,
+	Log:            log,
+	UserSvc:        userSvc,
+	AllowedUserIDs: allowedIDs,
+})
+```
+
+- [ ] **Step 5: Update env files to document the new variable**
+
+Append to `bot/.env.example`:
+
+```dotenv
+
+# Admin bot: comma-separated Telegram user IDs allowed to interact.
+# Empty = reject everyone. Required for admin to be usable.
+ADMIN_ALLOWED_USER_IDS=
+```
+
+Append the same line to `bot/.env` (with a real value once you know your operator Telegram ID; leave empty for the build).
+
+Append the same `ADMIN_ALLOWED_USER_IDS=` line to `bot/.env.admin` (the VS Code debug env file).
+
+- [ ] **Step 6: Build + test**
 
 ```bash
+cd /Users/konstantinkotau/Desktop/projects.com/rollton/bot
 go build ./...
 go test -race -short ./...
 ```
-Expected: build OK; all tests (incl. admin's new start test) PASS.
+Expected: build OK; all unit tests PASS (admin's start test passes because the test bypasses the middleware chain).
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 cd /Users/konstantinkotau/Desktop/projects.com/rollton
-git add bot/internal/bots/admin/ bot/cmd/admin/
-git commit -m "feat(bot): mirror user-auth wiring into admin bot"
+git add bot/internal/bots/admin/ bot/cmd/admin/ bot/.env.example bot/.env.admin
+git commit -m "feat(bot): wire user-auth + admin allowlist into admin bot"
 ```
+
+(Note: `bot/.env` is gitignored — won't be committed even if `git add` touches it.)
 
 ---
 

@@ -25,6 +25,7 @@ The same `users` table serves both `rolltonchatbot` (the launcher) and `admin` b
 | Internal ID | UUID v4 | Stable, doesn't leak Telegram ID, fits future API contracts |
 | Telegram ID storage | `BIGINT NOT NULL UNIQUE` | Telegram IDs can exceed int32; uniqueness enforces one-row-per-user |
 | Cross-bot sharing | All bots share one `users` table | One user maps to one row regardless of which bot they talked to first |
+| Admin bot access | Allowlist of Telegram IDs via `ADMIN_ALLOWED_USER_IDS` env var, enforced by a separate `AllowOnlyUserIDs` middleware *after* registration | Auto-register still runs for anyone who DMs admin (preserves cross-bot user table); only allowlisted IDs reach handlers. Non-admins are silently dropped (no reply, just INFO log). |
 | Updates to existing rows | Whitelist of columns (`username`, `first_name`, `last_name`, `language_code`, `is_premium`); never change `id`, `telegram_id`, `created_at` | Idempotency |
 | Empty `SentFrom()` updates (e.g. channel posts) | Middleware passes through without DB call | Bot-only edge cases; nothing to register |
 
