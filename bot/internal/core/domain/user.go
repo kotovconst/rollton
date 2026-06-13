@@ -8,11 +8,14 @@ import (
 	"github.com/google/uuid"
 )
 
-// ErrUserNotFound is returned by UserRepository.GetByTelegramID when no row
-// matches. Adapters translate driver errors (e.g. pgx.ErrNoRows) to this.
+// ErrUserNotFound is returned when no row matches a lookup by telegram_id.
+// Services translate driver errors (e.g. pgx.ErrNoRows) to this.
 var ErrUserNotFound = errors.New("user not found")
 
 // User is the internal representation. Lifetime: stored, never recreated.
+//
+// Construct fresh instances from incoming Telegram data via NewUser.
+// Loaded instances come from the storage layer with all fields populated.
 type User struct {
 	ID           uuid.UUID
 	TelegramID   int64
@@ -25,13 +28,26 @@ type User struct {
 	UpdatedAt    time.Time
 }
 
-// TelegramUserInput is the data we read off an incoming update.
-// Built by the middleware from update.SentFrom().
-type TelegramUserInput struct {
-	TelegramID   int64
-	Username     string
-	FirstName    string
-	LastName     string
-	LanguageCode string
-	IsPremium    bool
+// NewUser builds a User from incoming Telegram update fields. The ID and
+// timestamps are left zero — the storage layer populates them.
+func NewUser(telegramID int64, username, firstName, lastName, languageCode string, isPremium bool) User {
+	return User{
+		TelegramID:   telegramID,
+		Username:     username,
+		FirstName:    firstName,
+		LastName:     lastName,
+		LanguageCode: languageCode,
+		IsPremium:    isPremium,
+	}
+}
+
+// TelegramFieldsMatch reports whether u and other carry the same
+// Telegram-sourced fields. The service uses this to decide whether to skip
+// an upsert when the incoming update brings nothing new.
+func (u User) TelegramFieldsMatch(other User) bool {
+	return u.Username == other.Username &&
+		u.FirstName == other.FirstName &&
+		u.LastName == other.LastName &&
+		u.LanguageCode == other.LanguageCode &&
+		u.IsPremium == other.IsPremium
 }

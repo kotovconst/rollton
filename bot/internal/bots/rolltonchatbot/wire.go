@@ -11,7 +11,7 @@ import (
 	httph "github.com/kotovconst/rollton/bot/internal/bots/rolltonchatbot/handlers/http"
 	tgh "github.com/kotovconst/rollton/bot/internal/bots/rolltonchatbot/handlers/telegram"
 	"github.com/kotovconst/rollton/bot/internal/config"
-	"github.com/kotovconst/rollton/bot/internal/core/services"
+	"github.com/kotovconst/rollton/bot/internal/core/ports"
 	"github.com/kotovconst/rollton/bot/internal/middleware"
 	"github.com/kotovconst/rollton/bot/pkg/tgbot"
 	"golang.org/x/sync/errgroup"
@@ -20,7 +20,7 @@ import (
 type Deps struct {
 	Cfg     config.Config
 	Log     *slog.Logger
-	UserSvc *services.UserService
+	UserSvc ports.UserService
 }
 
 type App struct {

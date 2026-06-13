@@ -20,10 +20,10 @@ type fakeUserSvc struct {
 	user       domain.User
 	err        error
 	called     bool
-	calledWith domain.TelegramUserInput
+	calledWith domain.User
 }
 
-func (f *fakeUserSvc) EnsureRegistered(_ context.Context, in domain.TelegramUserInput) (domain.User, error) {
+func (f *fakeUserSvc) EnsureRegistered(_ context.Context, in domain.User) (domain.User, error) {
 	f.called = true
 	f.calledWith = in
 	return f.user, f.err

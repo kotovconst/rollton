@@ -15,7 +15,6 @@ import (
 	bota "github.com/kotovconst/rollton/bot/internal/bots/admin"
 	"github.com/kotovconst/rollton/bot/internal/config"
 	"github.com/kotovconst/rollton/bot/internal/core/services"
-	"github.com/kotovconst/rollton/bot/pkg/sqlc/postgres"
 )
 
 func main() {
@@ -43,9 +42,7 @@ func main() {
 	}
 	cancelPing()
 
-	queries := postgres.New(pool)
-	userRepo := postgres.NewUserRepoPg(queries)
-	userSvc := services.NewUserService(userRepo)
+	userSvc := services.NewUserService(pool)
 
 	allowedIDs := parseAllowedUserIDs(os.Getenv("ADMIN_ALLOWED_USER_IDS"))
 	log.Info("admin_allowlist_loaded", "count", len(allowedIDs))

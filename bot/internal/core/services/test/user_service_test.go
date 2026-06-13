@@ -4,113 +4,140 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/pashagolub/pgxmock/v4"
 	"github.com/stretchr/testify/require"
 
 	"github.com/kotovconst/rollton/bot/internal/core/domain"
 	"github.com/kotovconst/rollton/bot/internal/core/services"
 )
 
-type fakeUserRepo struct {
-	stored      domain.User
-	getErr      error
-	upsertErr   error
-	upsertCalls int
-	upsertInput domain.TelegramUserInput
+// userRowColumns mirrors the order of fields in the sqlc-generated User struct.
+func userRowColumns() []string {
+	return []string{"id", "telegram_id", "username", "first_name", "last_name", "language_code", "is_premium", "created_at", "updated_at"}
 }
 
-func (f *fakeUserRepo) GetByTelegramID(_ context.Context, _ int64) (domain.User, error) {
-	if f.getErr != nil {
-		return domain.User{}, f.getErr
+func toRow(u domain.User) []any {
+	uuidBytes := [16]byte(u.ID)
+	now := time.Now().UTC()
+	if u.CreatedAt.IsZero() {
+		u.CreatedAt = now
 	}
-	return f.stored, nil
-}
-
-func (f *fakeUserRepo) UpsertFromTelegram(_ context.Context, in domain.TelegramUserInput) (domain.User, error) {
-	f.upsertCalls++
-	f.upsertInput = in
-	if f.upsertErr != nil {
-		return domain.User{}, f.upsertErr
+	if u.UpdatedAt.IsZero() {
+		u.UpdatedAt = now
 	}
-	return domain.User{
-		ID:           uuid.New(),
-		TelegramID:   in.TelegramID,
-		Username:     in.Username,
-		FirstName:    in.FirstName,
-		LastName:     in.LastName,
-		LanguageCode: in.LanguageCode,
-		IsPremium:    in.IsPremium,
-	}, nil
-}
-
-func sampleInput() domain.TelegramUserInput {
-	return domain.TelegramUserInput{
-		TelegramID:   42,
-		Username:     "alice",
-		FirstName:    "Alice",
-		LastName:     "Smith",
-		LanguageCode: "en",
-		IsPremium:    false,
+	return []any{
+		pgtype.UUID{Bytes: uuidBytes, Valid: true},
+		u.TelegramID,
+		textOrNullable(u.Username),
+		u.FirstName,
+		textOrNullable(u.LastName),
+		textOrNullable(u.LanguageCode),
+		u.IsPremium,
+		pgtype.Timestamptz{Time: u.CreatedAt, Valid: true},
+		pgtype.Timestamptz{Time: u.UpdatedAt, Valid: true},
 	}
 }
 
-func storedFromInput(in domain.TelegramUserInput) domain.User {
-	return domain.User{
-		ID:           uuid.New(),
-		TelegramID:   in.TelegramID,
-		Username:     in.Username,
-		FirstName:    in.FirstName,
-		LastName:     in.LastName,
-		LanguageCode: in.LanguageCode,
-		IsPremium:    in.IsPremium,
+func textOrNullable(s string) pgtype.Text {
+	if s == "" {
+		return pgtype.Text{}
 	}
+	return pgtype.Text{String: s, Valid: true}
 }
 
-func TestEnsureRegistered_FoundWithMatchingFields_SkipsUpsert(t *testing.T) {
-	in := sampleInput()
-	repo := &fakeUserRepo{stored: storedFromInput(in)}
-	svc := services.NewUserService(repo)
+func newMock(t *testing.T) pgxmock.PgxPoolIface {
+	t.Helper()
+	m, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	t.Cleanup(m.Close)
+	return m
+}
 
-	u, err := svc.EnsureRegistered(context.Background(), in)
+func TestEnsureRegistered_FoundMatching_SkipsUpsert(t *testing.T) {
+	mock := newMock(t)
+	input := domain.NewUser(42, "alice", "Alice", "Smith", "en", false)
+	stored := input
+	stored.ID = uuid.New()
+
+	mock.ExpectQuery(`SELECT (.+) FROM users WHERE telegram_id`).
+		WithArgs(int64(42)).
+		WillReturnRows(pgxmock.NewRows(userRowColumns()).AddRow(toRow(stored)...))
+
+	svc := services.NewUserService(mock)
+	u, err := svc.EnsureRegistered(context.Background(), input)
 
 	require.NoError(t, err)
-	require.Equal(t, int64(42), u.TelegramID)
-	require.Equal(t, 0, repo.upsertCalls)
+	require.Equal(t, stored.ID, u.ID)
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestEnsureRegistered_FieldDrift_TriggersUpsert(t *testing.T) {
-	in := sampleInput()
-	stored := storedFromInput(in)
+	mock := newMock(t)
+	input := domain.NewUser(42, "alice", "Alice", "Smith", "en", false)
+	stored := input
+	stored.ID = uuid.New()
 	stored.Username = "old_handle" // drifted
-	repo := &fakeUserRepo{stored: stored}
-	svc := services.NewUserService(repo)
 
-	u, err := svc.EnsureRegistered(context.Background(), in)
+	mock.ExpectQuery(`SELECT (.+) FROM users WHERE telegram_id`).
+		WithArgs(int64(42)).
+		WillReturnRows(pgxmock.NewRows(userRowColumns()).AddRow(toRow(stored)...))
+
+	upserted := input
+	upserted.ID = stored.ID
+	mock.ExpectQuery(`INSERT INTO users`).
+		WithArgs(input.TelegramID, textOrNullable(input.Username), input.FirstName,
+			textOrNullable(input.LastName), textOrNullable(input.LanguageCode), input.IsPremium).
+		WillReturnRows(pgxmock.NewRows(userRowColumns()).AddRow(toRow(upserted)...))
+
+	svc := services.NewUserService(mock)
+	u, err := svc.EnsureRegistered(context.Background(), input)
 
 	require.NoError(t, err)
-	require.Equal(t, 1, repo.upsertCalls)
 	require.Equal(t, "alice", u.Username)
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestEnsureRegistered_NotFound_CallsUpsert(t *testing.T) {
-	repo := &fakeUserRepo{getErr: domain.ErrUserNotFound}
-	svc := services.NewUserService(repo)
+	mock := newMock(t)
+	input := domain.NewUser(42, "alice", "Alice", "Smith", "en", false)
 
-	u, err := svc.EnsureRegistered(context.Background(), sampleInput())
+	mock.ExpectQuery(`SELECT (.+) FROM users WHERE telegram_id`).
+		WithArgs(int64(42)).
+		WillReturnError(pgx.ErrNoRows)
+
+	created := input
+	created.ID = uuid.New()
+	mock.ExpectQuery(`INSERT INTO users`).
+		WithArgs(input.TelegramID, textOrNullable(input.Username), input.FirstName,
+			textOrNullable(input.LastName), textOrNullable(input.LanguageCode), input.IsPremium).
+		WillReturnRows(pgxmock.NewRows(userRowColumns()).AddRow(toRow(created)...))
+
+	svc := services.NewUserService(mock)
+	u, err := svc.EnsureRegistered(context.Background(), input)
 
 	require.NoError(t, err)
-	require.Equal(t, 1, repo.upsertCalls)
 	require.Equal(t, int64(42), u.TelegramID)
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestEnsureRegistered_GetErrorOtherThanNotFound_Bubbles(t *testing.T) {
-	repoErr := errors.New("connection refused")
-	repo := &fakeUserRepo{getErr: repoErr}
-	svc := services.NewUserService(repo)
+	mock := newMock(t)
+	input := domain.NewUser(42, "alice", "Alice", "Smith", "en", false)
 
-	_, err := svc.EnsureRegistered(context.Background(), sampleInput())
+	dbErr := errors.New("connection refused")
+	mock.ExpectQuery(`SELECT (.+) FROM users WHERE telegram_id`).
+		WithArgs(int64(42)).
+		WillReturnError(dbErr)
 
-	require.ErrorIs(t, err, repoErr)
-	require.Equal(t, 0, repo.upsertCalls)
+	svc := services.NewUserService(mock)
+	_, err := svc.EnsureRegistered(context.Background(), input)
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, dbErr)
+	require.NoError(t, mock.ExpectationsWereMet())
 }

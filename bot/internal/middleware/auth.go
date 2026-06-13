@@ -8,11 +8,11 @@ import (
 	"github.com/kotovconst/rollton/bot/pkg/tgbot"
 )
 
-// UserService is the subset of services.UserService that the middleware needs.
+// UserService is the subset of ports.UserService that the middleware needs.
 // Declared here so the middleware doesn't import the services package directly
 // (loosens the dependency graph; eases testing with fakes).
 type UserService interface {
-	EnsureRegistered(ctx context.Context, input domain.TelegramUserInput) (domain.User, error)
+	EnsureRegistered(ctx context.Context, user domain.User) (domain.User, error)
 }
 
 type userCtxKey struct{}
@@ -39,16 +39,9 @@ func EnsureUserRegistered(svc UserService, log *slog.Logger) tgbot.Middleware {
 			if tg == nil {
 				return next(c)
 			}
-			input := domain.TelegramUserInput{
-				TelegramID:   tg.ID,
-				Username:     tg.UserName,
-				FirstName:    tg.FirstName,
-				LastName:     tg.LastName,
-				LanguageCode: tg.LanguageCode,
-				// IsPremium: tgbotapi/v5 v5.5.1 doesn't expose this field;
-				// stub leaves it false until the library is bumped or replaced.
-				IsPremium: false,
-			}
+			// IsPremium: tgbotapi/v5 v5.5.1 doesn't expose this field; pass
+			// false until the library is bumped or replaced.
+			input := domain.NewUser(tg.ID, tg.UserName, tg.FirstName, tg.LastName, tg.LanguageCode, false)
 			u, err := svc.EnsureRegistered(c.Ctx(), input)
 			if err != nil {
 				log.Error("user_registration_failed",
