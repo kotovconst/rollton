@@ -92,7 +92,7 @@ terraform apply
 aws ssm put-parameter --region eu-central-1 --overwrite \
   --name /rollton/prod/rolltonchatbot/telegram_token \
   --type SecureString \
-  --value "8833471135:..."
+  --value "1234567890:REPLACE_WITH_BOTFATHER_TOKEN"
 
 aws ssm put-parameter --region eu-central-1 --overwrite \
   --name /rollton/prod/admin/telegram_token \
