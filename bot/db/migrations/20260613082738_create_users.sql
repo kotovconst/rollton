@@ -1,6 +1,5 @@
--- Canonical schema snapshot. Normally regenerated from db/migrations by `make schema-dump`.
--- Hand-edited here because Docker daemon was unavailable; run `make schema-dump` to refresh.
-
+-- +goose Up
+-- +goose StatementBegin
 CREATE TABLE users (
     id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
     telegram_id     BIGINT      NOT NULL UNIQUE,
@@ -14,3 +13,9 @@ CREATE TABLE users (
 );
 
 CREATE INDEX users_telegram_id_idx ON users (telegram_id);
+-- +goose StatementEnd
+
+-- +goose Down
+-- +goose StatementBegin
+DROP TABLE users;
+-- +goose StatementEnd
