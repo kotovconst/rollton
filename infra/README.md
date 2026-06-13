@@ -4,6 +4,20 @@ Terraform configuration for Rollton AWS resources + DNS, plus the GitHub Actions
 
 See `docs/superpowers/specs/2026-06-13-rollton-infra-design.md` for the design.
 
+## What lives where (and what "backend" means here)
+
+The word "backend" is overloaded. To prevent confusion:
+
+| Component | Where it runs | Terraform handles it? |
+|---|---|---|
+| **Bot API backend** (Go service, `api.rollton.com`) | EC2 t4g.small | yes — `modules/bot_host` |
+| Postgres database | RDS db.t4g.micro | yes — `modules/database` |
+| Mini app frontend (`app.rollton.com`) | Cloudflare Pages | no — set up once in the Cloudflare dashboard |
+| DNS records | Cloudflare | yes — `modules/dns` |
+| **Terraform state** (bookkeeping JSON Terraform writes) | S3 bucket | created by `bootstrap/`, referenced via `backend "s3"` in `envs/prod/backend.tf` |
+
+The `backend "s3"` block in `envs/prod/backend.tf` is **Terraform's own state storage**, not the bot's API backend. They're the same word for two unrelated things.
+
 ## Layout
 
 | Dir | Purpose |

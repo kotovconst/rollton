@@ -1,0 +1,8 @@
+# Copy to terraform.tfvars and fill in real values.
+
+operator_ip_cidr       = "203.0.113.42/32"
+ssh_public_key         = "ssh-ed25519 AAAA... operator@example"
+domain_root            = "rollton.com"
+cloudflare_api_token   = "cf_pat_..."
+cloudflare_zone_id     = "abc123..."
+cloudflare_pages_cname = "rollton-web.pages.dev"
