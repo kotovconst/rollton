@@ -189,20 +189,25 @@ func toDomainUser(row postgres.User) domain.User { ... }
 
 ### 5.5 `internal/middleware/auth.go`
 
+The user is stored in the standard `context.Context` carried by `tgbot.Context`, using a private key in the middleware package. No changes to `pkg/tgbot` are required — this keeps the dependency direction clean (`pkg/tgbot` knows nothing about `domain.User`).
+
 ```go
 type userCtxKey struct{}
 
+// WithUser returns a new context carrying u.
 func WithUser(ctx context.Context, u *domain.User) context.Context {
     return context.WithValue(ctx, userCtxKey{}, u)
 }
 
+// UserFromContext returns the registered user, or (nil, false) if no
+// EnsureUserRegistered middleware ran or the registration failed soft.
 func UserFromContext(ctx context.Context) (*domain.User, bool) {
     u, ok := ctx.Value(userCtxKey{}).(*domain.User)
     return u, ok
 }
 
 // EnsureUserRegistered is a tgbot.Middleware that auto-registers the sender.
-// If SentFrom() is nil (channel posts, edited messages without user, etc.) it
+// If SentFrom() is nil (channel posts, edited-without-user updates, etc.) it
 // passes through without DB calls.
 func EnsureUserRegistered(svc *services.UserService, log *slog.Logger) tgbot.Middleware {
     return func(next tgbot.HandlerFunc) tgbot.HandlerFunc {
@@ -223,36 +228,26 @@ func EnsureUserRegistered(svc *services.UserService, log *slog.Logger) tgbot.Mid
             if err != nil {
                 log.Error("user_registration_failed",
                     "telegram_id", tg.ID, "err", err)
-                return next(c) // continue with no user in context; handler can decide
+                return next(c) // continue with no user in context
             }
-            c.SetCtx(c.Ctx())                       // no-op; just to express intent
-            *c = *c.WithUser(&u)                    // see 5.6 — context extension
+            // Mutate the tgbot.Context's ctx to carry the user.
+            c.SetCtx(WithUser(c.Ctx(), &u))
             return next(c)
         }
     }
 }
 ```
 
-### 5.6 `pkg/tgbot/context.go` additions
+### 5.6 `pkg/tgbot/context.go` — one small addition
 
-Extend `Context` so handlers can read the user without importing `internal/middleware`:
+Add a single setter so middleware can replace the carried `context.Context`:
 
 ```go
-// (in pkg/tgbot/context.go)
-func (c *Context) WithUser(u any) *Context {
-    // Stores under a sentinel key. Type is `any` so pkg/tgbot doesn't import
-    // internal/domain — preserves the dependency direction.
-    nc := *c
-    nc.values = mapCopyAdd(c.values, ctxKeyUser, u)
-    return &nc
-}
-
-func (c *Context) UserAny() any {
-    return c.values[ctxKeyUser]
-}
+// SetCtx replaces the request-scoped context.
+func (c *Context) SetCtx(ctx context.Context) { c.ctx = ctx }
 ```
 
-Consumers in `internal/middleware/auth.go` cast `c.UserAny().(*domain.User)`. (Alternatively, we can have the middleware put the user into `c.Ctx()` via `context.WithValue` and skip the tgbot.Context extension — simpler, no `pkg/tgbot` change. Plan will pick the simpler version.)
+That's the only change to `pkg/tgbot`. No new fields, no `domain.User` import, no map of values.
 
 ### 5.7 `internal/bots/rolltonchatbot/wire.go`
 - Construct `userRepo := postgres.NewUserRepoPg(queries)`.
@@ -329,7 +324,7 @@ Testcontainers integration test is opt-in: `make test-integration`. Unit tests s
 
 ## 10. Open items resolved at execution time
 
-- Whether to put the user in `c.Ctx()` (`context.WithValue`) or extend `pkg/tgbot.Context` with a typed slot. **Plan default:** `c.Ctx()` — simpler, no `pkg/tgbot` change. Section 5.6 above documents the alternative.
+- Approach for carrying the user through the request: standard `context.WithValue` keyed on a sentinel type defined in `internal/middleware/auth.go`. `pkg/tgbot.Context` gets a one-line `SetCtx` setter and nothing else. (Decided in Section 5.5–5.6.)
 - Initial migration timestamp (`make migrate-new name=create_users` decides this at execution).
 - Whether `is_premium` defaults FALSE or NULL — defaults to FALSE per Section 3.
 - Whether to keep `pgx.ErrNoRows` translation in the adapter or domain layer — adapter, per Section 5.4 (sqlc-emitted error stays inside sqlc package).
