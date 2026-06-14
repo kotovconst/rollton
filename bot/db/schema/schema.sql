@@ -47,7 +47,6 @@ CREATE TABLE public.characters (
 CREATE TABLE public.chats (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
-    character_id uuid NOT NULL,
     context_id uuid NOT NULL,
     status text DEFAULT 'active'::text NOT NULL,
     summary text,
@@ -264,13 +263,6 @@ ALTER TABLE ONLY public.users
 
 
 --
--- Name: chats_character_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX chats_character_id_idx ON public.chats USING btree (character_id);
-
-
---
 -- Name: chats_user_status_updated_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -303,14 +295,6 @@ CREATE UNIQUE INDEX tg_messages_chat_tgmsg_unique ON public.tg_messages USING bt
 --
 
 CREATE INDEX users_telegram_id_idx ON public.users USING btree (telegram_id);
-
-
---
--- Name: chats chats_character_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.chats
-    ADD CONSTRAINT chats_character_id_fkey FOREIGN KEY (character_id) REFERENCES public.characters(id) ON DELETE RESTRICT;
 
 
 --

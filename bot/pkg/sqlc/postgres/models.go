@@ -23,14 +23,13 @@ type Character struct {
 }
 
 type Chat struct {
-	ID          pgtype.UUID        `json:"id"`
-	UserID      pgtype.UUID        `json:"user_id"`
-	CharacterID pgtype.UUID        `json:"character_id"`
-	ContextID   pgtype.UUID        `json:"context_id"`
-	Status      string             `json:"status"`
-	Summary     pgtype.Text        `json:"summary"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ID        pgtype.UUID        `json:"id"`
+	UserID    pgtype.UUID        `json:"user_id"`
+	ContextID pgtype.UUID        `json:"context_id"`
+	Status    string             `json:"status"`
+	Summary   pgtype.Text        `json:"summary"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Context struct {
