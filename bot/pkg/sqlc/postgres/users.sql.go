@@ -12,7 +12,7 @@ import (
 )
 
 const getUserByTelegramID = `-- name: GetUserByTelegramID :one
-SELECT id, telegram_id, username, first_name, last_name, language_code, is_premium, created_at, updated_at FROM users WHERE telegram_id = $1
+SELECT id, telegram_id, username, first_name, last_name, language_code, is_premium, created_at, updated_at, active_chat_id, is_adult, age_verified_at FROM users WHERE telegram_id = $1
 `
 
 func (q *Queries) GetUserByTelegramID(ctx context.Context, telegramID int64) (User, error) {
@@ -28,6 +28,9 @@ func (q *Queries) GetUserByTelegramID(ctx context.Context, telegramID int64) (Us
 		&i.IsPremium,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ActiveChatID,
+		&i.IsAdult,
+		&i.AgeVerifiedAt,
 	)
 	return i, err
 }
@@ -42,7 +45,7 @@ ON CONFLICT (telegram_id) DO UPDATE SET
     language_code = EXCLUDED.language_code,
     is_premium    = EXCLUDED.is_premium,
     updated_at    = NOW()
-RETURNING id, telegram_id, username, first_name, last_name, language_code, is_premium, created_at, updated_at
+RETURNING id, telegram_id, username, first_name, last_name, language_code, is_premium, created_at, updated_at, active_chat_id, is_adult, age_verified_at
 `
 
 type UpsertUserFromTelegramParams struct {
@@ -74,6 +77,9 @@ func (q *Queries) UpsertUserFromTelegram(ctx context.Context, arg UpsertUserFrom
 		&i.IsPremium,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ActiveChatID,
+		&i.IsAdult,
+		&i.AgeVerifiedAt,
 	)
 	return i, err
 }

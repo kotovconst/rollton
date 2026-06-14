@@ -30,6 +30,7 @@ if compgen -G "db/migrations/*.sql" >/dev/null; then
 fi
 
 docker exec "$CONTAINER" pg_dump -U postgres --schema-only --no-owner --no-privileges schema_dump \
+  | grep -vE '^\\(restrict|unrestrict) ' \
   > db/schema/schema.sql
 
 echo "✓ db/schema/schema.sql regenerated"

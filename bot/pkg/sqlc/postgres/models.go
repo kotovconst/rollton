@@ -8,14 +8,92 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Character struct {
+	ID          pgtype.UUID        `json:"id"`
+	Slug        string             `json:"slug"`
+	Name        string             `json:"name"`
+	Blurb       string             `json:"blurb"`
+	AvatarUrl   pgtype.Text        `json:"avatar_url"`
+	BasePrompt  string             `json:"base_prompt"`
+	BotUsername string             `json:"bot_username"`
+	IsActive    bool               `json:"is_active"`
+	Position    int32              `json:"position"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type Chat struct {
+	ID          pgtype.UUID        `json:"id"`
+	UserID      pgtype.UUID        `json:"user_id"`
+	CharacterID pgtype.UUID        `json:"character_id"`
+	ContextID   pgtype.UUID        `json:"context_id"`
+	Status      string             `json:"status"`
+	Summary     pgtype.Text        `json:"summary"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type Context struct {
+	ID              pgtype.UUID        `json:"id"`
+	CharacterID     pgtype.UUID        `json:"character_id"`
+	ModelConfigID   pgtype.UUID        `json:"model_config_id"`
+	Slug            string             `json:"slug"`
+	Name            string             `json:"name"`
+	Description     string             `json:"description"`
+	Prompt          string             `json:"prompt"`
+	IsActive        bool               `json:"is_active"`
+	IsAgeRestricted bool               `json:"is_age_restricted"`
+	Position        int32              `json:"position"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+type GooseDbVersion struct {
+	ID        int32            `json:"id"`
+	VersionID int64            `json:"version_id"`
+	IsApplied bool             `json:"is_applied"`
+	Tstamp    pgtype.Timestamp `json:"tstamp"`
+}
+
+type ModelConfig struct {
+	ID          pgtype.UUID        `json:"id"`
+	Slug        string             `json:"slug"`
+	DisplayName string             `json:"display_name"`
+	Provider    string             `json:"provider"`
+	Model       string             `json:"model"`
+	Temperature pgtype.Float8      `json:"temperature"`
+	TopP        pgtype.Float8      `json:"top_p"`
+	MaxTokens   pgtype.Int4        `json:"max_tokens"`
+	IsActive    bool               `json:"is_active"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type TgMessage struct {
+	ID                pgtype.UUID        `json:"id"`
+	ChatID            pgtype.UUID        `json:"chat_id"`
+	Role              string             `json:"role"`
+	Content           string             `json:"content"`
+	TelegramMessageID pgtype.Int8        `json:"telegram_message_id"`
+	AttachmentKind    pgtype.Text        `json:"attachment_kind"`
+	AttachmentFileID  pgtype.Text        `json:"attachment_file_id"`
+	LlmModel          pgtype.Text        `json:"llm_model"`
+	LlmTokensIn       pgtype.Int4        `json:"llm_tokens_in"`
+	LlmTokensOut      pgtype.Int4        `json:"llm_tokens_out"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+}
+
 type User struct {
-	ID           pgtype.UUID        `json:"id"`
-	TelegramID   int64              `json:"telegram_id"`
-	Username     pgtype.Text        `json:"username"`
-	FirstName    string             `json:"first_name"`
-	LastName     pgtype.Text        `json:"last_name"`
-	LanguageCode pgtype.Text        `json:"language_code"`
-	IsPremium    bool               `json:"is_premium"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	ID            pgtype.UUID        `json:"id"`
+	TelegramID    int64              `json:"telegram_id"`
+	Username      pgtype.Text        `json:"username"`
+	FirstName     string             `json:"first_name"`
+	LastName      pgtype.Text        `json:"last_name"`
+	LanguageCode  pgtype.Text        `json:"language_code"`
+	IsPremium     bool               `json:"is_premium"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	ActiveChatID  pgtype.UUID        `json:"active_chat_id"`
+	IsAdult       bool               `json:"is_adult"`
+	AgeVerifiedAt pgtype.Timestamptz `json:"age_verified_at"`
 }
