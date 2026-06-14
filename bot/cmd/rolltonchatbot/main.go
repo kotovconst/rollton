@@ -41,8 +41,14 @@ func main() {
 	cancelPing()
 
 	userSvc := services.NewUserService(pool)
+	characterSvc := services.NewCharacterService(pool)
 
-	app, err := bota.NewApp(bota.Deps{Cfg: cfg, Log: log, UserSvc: userSvc})
+	app, err := bota.NewApp(bota.Deps{
+		Cfg:          cfg,
+		Log:          log,
+		UserSvc:      userSvc,
+		CharacterSvc: characterSvc,
+	})
 	if err != nil {
 		log.Error("app_init_failed", "err", err)
 		os.Exit(1)

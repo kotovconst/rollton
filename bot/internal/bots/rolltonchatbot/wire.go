@@ -18,9 +18,10 @@ import (
 )
 
 type Deps struct {
-	Cfg     config.Config
-	Log     *slog.Logger
-	UserSvc ports.UserService
+	Cfg          config.Config
+	Log          *slog.Logger
+	UserSvc      ports.UserService
+	CharacterSvc ports.CharacterService
 }
 
 type App struct {
@@ -40,14 +41,17 @@ func NewApp(deps Deps) (*App, error) {
 	start := tgh.NewStartHandler()
 	b.Router().Handle("start", start.Handle)
 
-	mux := httpstd.NewServeMux()
-	mux.Handle("/healthz", httph.NewHealthzHandler())
-	mux.Handle("/api/v1/me", middleware.TmaAuth(
+	tmaAuth := middleware.TmaAuth(
 		deps.Cfg.TelegramToken,
 		deps.UserSvc,
 		deps.Log,
 		24*time.Hour,
-	)(httph.NewMeHandler()))
+	)
+
+	mux := httpstd.NewServeMux()
+	mux.Handle("/healthz", httph.NewHealthzHandler())
+	mux.Handle("/api/v1/me", tmaAuth(httph.NewMeHandler()))
+	mux.Handle("/api/v1/characters", tmaAuth(httph.NewCharactersHandler(deps.CharacterSvc)))
 
 	return &App{deps: deps, bot: b, mux: mux}, nil
 }
