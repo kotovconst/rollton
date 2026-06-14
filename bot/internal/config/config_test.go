@@ -13,6 +13,7 @@ func TestLoad_FromEnv(t *testing.T) {
 	t.Setenv("LOG_LEVEL", "debug")
 	t.Setenv("LOG_FORMAT", "text")
 	t.Setenv("TELEGRAM_TOKEN", "abc123")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.rollton.com,https://example.dev")
 
 	cfg, err := config.Load()
 	require.NoError(t, err)
@@ -22,6 +23,27 @@ func TestLoad_FromEnv(t *testing.T) {
 	require.Equal(t, "debug", cfg.Log.Level)
 	require.Equal(t, "text", cfg.Log.Format)
 	require.Equal(t, "abc123", cfg.TelegramToken)
+	require.Equal(t, []string{"https://app.rollton.com", "https://example.dev"}, cfg.HTTP.AllowedOrigins)
+}
+
+func TestLoad_AllowedOrigins_EmptyByDefault(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://x")
+	t.Setenv("TELEGRAM_TOKEN", "abc")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "")
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	require.Empty(t, cfg.HTTP.AllowedOrigins)
+}
+
+func TestLoad_AllowedOrigins_TrimsWhitespace(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://x")
+	t.Setenv("TELEGRAM_TOKEN", "abc")
+	t.Setenv("CORS_ALLOWED_ORIGINS", " https://a.com , https://b.com ")
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	require.Equal(t, []string{"https://a.com", "https://b.com"}, cfg.HTTP.AllowedOrigins)
 }
 
 func TestLoad_MissingDatabaseURL(t *testing.T) {
