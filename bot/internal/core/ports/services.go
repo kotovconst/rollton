@@ -14,3 +14,9 @@ import (
 type UserService interface {
 	EnsureRegistered(ctx context.Context, user domain.User) (domain.User, error)
 }
+
+// CharacterService returns the catalog of characters the launcher offers.
+// Today: a flat ListActive. Later: GetBySlug, ListByTag, etc.
+type CharacterService interface {
+	ListActive(ctx context.Context) ([]domain.Character, error)
+}
