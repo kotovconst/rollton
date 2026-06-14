@@ -10,6 +10,7 @@ import (
 
 type Querier interface {
 	GetUserByTelegramID(ctx context.Context, telegramID int64) (User, error)
+	ListActiveCharacters(ctx context.Context) ([]Character, error)
 	UpsertUserFromTelegram(ctx context.Context, arg UpsertUserFromTelegramParams) (User, error)
 }
 
