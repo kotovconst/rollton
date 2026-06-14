@@ -154,7 +154,6 @@ CREATE TABLE public.users (
     is_premium boolean DEFAULT false NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    active_chat_id uuid,
     is_adult boolean DEFAULT false NOT NULL,
     age_verified_at timestamp with time zone
 );
@@ -300,13 +299,6 @@ CREATE UNIQUE INDEX tg_messages_chat_tgmsg_unique ON public.tg_messages USING bt
 
 
 --
--- Name: users_active_chat_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX users_active_chat_id_idx ON public.users USING btree (active_chat_id) WHERE (active_chat_id IS NOT NULL);
-
-
---
 -- Name: users_telegram_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -359,14 +351,6 @@ ALTER TABLE ONLY public.contexts
 
 ALTER TABLE ONLY public.tg_messages
     ADD CONSTRAINT tg_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES public.chats(id) ON DELETE CASCADE;
-
-
---
--- Name: users users_active_chat_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.users
-    ADD CONSTRAINT users_active_chat_id_fkey FOREIGN KEY (active_chat_id) REFERENCES public.chats(id) ON DELETE SET NULL;
 
 
 --

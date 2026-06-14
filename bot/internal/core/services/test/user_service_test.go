@@ -21,7 +21,7 @@ func userRowColumns() []string {
 	return []string{
 		"id", "telegram_id", "username", "first_name", "last_name", "language_code",
 		"is_premium", "created_at", "updated_at",
-		"active_chat_id", "is_adult", "age_verified_at",
+		"is_adult", "age_verified_at",
 	}
 }
 
@@ -44,9 +44,8 @@ func toRow(u domain.User) []any {
 		u.IsPremium,
 		pgtype.Timestamptz{Time: u.CreatedAt, Valid: true},
 		pgtype.Timestamptz{Time: u.UpdatedAt, Valid: true},
-		pgtype.UUID{Valid: false},          // active_chat_id (new column; default NULL)
-		false,                              // is_adult (new column; default FALSE)
-		pgtype.Timestamptz{Valid: false},   // age_verified_at (new column; default NULL)
+		false,                            // is_adult (default FALSE)
+		pgtype.Timestamptz{Valid: false}, // age_verified_at (default NULL)
 	}
 }
 

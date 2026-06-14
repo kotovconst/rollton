@@ -93,7 +93,6 @@ type User struct {
 	IsPremium     bool               `json:"is_premium"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
-	ActiveChatID  pgtype.UUID        `json:"active_chat_id"`
 	IsAdult       bool               `json:"is_adult"`
 	AgeVerifiedAt pgtype.Timestamptz `json:"age_verified_at"`
 }
