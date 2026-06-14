@@ -42,6 +42,12 @@ func NewApp(deps Deps) (*App, error) {
 
 	mux := httpstd.NewServeMux()
 	mux.Handle("/healthz", httph.NewHealthzHandler())
+	mux.Handle("/api/v1/me", middleware.TmaAuth(
+		deps.Cfg.TelegramToken,
+		deps.UserSvc,
+		deps.Log,
+		24*time.Hour,
+	)(httph.NewMeHandler()))
 
 	return &App{deps: deps, bot: b, mux: mux}, nil
 }
@@ -51,8 +57,10 @@ func (a *App) Run(ctx context.Context) error {
 	g, gctx := errgroup.WithContext(ctx)
 
 	srv := &httpstd.Server{
-		Addr:              fmt.Sprintf(":%d", a.deps.Cfg.HTTP.Port),
-		Handler:           middleware.HTTP(a.deps.Log)(a.mux),
+		Addr: fmt.Sprintf(":%d", a.deps.Cfg.HTTP.Port),
+		Handler: middleware.CORS(a.deps.Cfg.HTTP.AllowedOrigins)(
+			middleware.HTTP(a.deps.Log)(a.mux),
+		),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
