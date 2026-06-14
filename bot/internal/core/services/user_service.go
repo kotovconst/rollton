@@ -34,7 +34,7 @@ func (s *userService) EnsureRegistered(ctx context.Context, user domain.User) (d
 		return domain.User{}, errors.Join(errors.New("getting user"), err)
 	}
 	if err == nil {
-		existing := postgres.ToDomainUser(stored)
+		existing := domain.NewUserFromPostgresRow(stored)
 		if existing.TelegramFieldsMatch(user) {
 			return existing, nil
 		}
@@ -51,5 +51,5 @@ func (s *userService) EnsureRegistered(ctx context.Context, user domain.User) (d
 	if err != nil {
 		return domain.User{}, errors.Join(errors.New("upserting user"), err)
 	}
-	return postgres.ToDomainUser(row), nil
+	return domain.NewUserFromPostgresRow(row), nil
 }

@@ -1,4 +1,4 @@
-// Package domain holds bot-agnostic entities. No DB, no Telegram, no HTTP.
+// Package domain holds bot-agnostic entities.
 package domain
 
 import (
@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/kotovconst/rollton/bot/pkg/sqlc/postgres"
 )
 
 // ErrUserNotFound is returned when no row matches a lookup by telegram_id.
@@ -15,7 +17,7 @@ var ErrUserNotFound = errors.New("user not found")
 // User is the internal representation. Lifetime: stored, never recreated.
 //
 // Construct fresh instances from incoming Telegram data via NewUser.
-// Loaded instances come from the storage layer with all fields populated.
+// Loaded instances come from the storage layer via NewUserFromPostgresRow.
 type User struct {
 	ID           uuid.UUID
 	TelegramID   int64
@@ -38,6 +40,22 @@ func NewUser(telegramID int64, username, firstName, lastName, languageCode strin
 		LastName:     lastName,
 		LanguageCode: languageCode,
 		IsPremium:    isPremium,
+	}
+}
+
+// NewUserFromPostgresRow builds a User from a sqlc-generated row.
+// Lives in the domain package so domain owns "what a User is, from any source".
+func NewUserFromPostgresRow(row postgres.User) User {
+	return User{
+		ID:           uuid.UUID(row.ID.Bytes),
+		TelegramID:   row.TelegramID,
+		Username:     postgres.TextOrEmpty(row.Username),
+		FirstName:    row.FirstName,
+		LastName:     postgres.TextOrEmpty(row.LastName),
+		LanguageCode: postgres.TextOrEmpty(row.LanguageCode),
+		IsPremium:    row.IsPremium,
+		CreatedAt:    row.CreatedAt.Time,
+		UpdatedAt:    row.UpdatedAt.Time,
 	}
 }
 
