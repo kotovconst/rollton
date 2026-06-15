@@ -46,9 +46,8 @@ func withTyping(chatID int64, send sendActionFunc, fn func() error) error {
 			}
 		}
 	}()
+	defer func() { <-done }()
+	defer close(stop)
 
-	err := fn()
-	close(stop)
-	<-done
-	return err
+	return fn()
 }

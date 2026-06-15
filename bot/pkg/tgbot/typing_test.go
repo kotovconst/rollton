@@ -68,3 +68,21 @@ func TestWithTyping_SendErrorsAreSwallowed(t *testing.T) {
 
 	require.NoError(t, withTyping(123, send, func() error { return nil }))
 }
+
+func TestWithTyping_PanicInFnDoesNotLeakGoroutine(t *testing.T) {
+	prev := tickInterval
+	tickInterval = 50 * time.Millisecond
+	t.Cleanup(func() { tickInterval = prev })
+
+	var calls int32
+	send := func(_ int64) error { atomic.AddInt32(&calls, 1); return nil }
+
+	require.Panics(t, func() {
+		_ = withTyping(123, send, func() error { panic("boom") })
+	})
+
+	before := atomic.LoadInt32(&calls)
+	time.Sleep(150 * time.Millisecond)
+	after := atomic.LoadInt32(&calls)
+	require.Equal(t, before, after, "ticker goroutine must stop when fn panics")
+}
