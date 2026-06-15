@@ -11,11 +11,12 @@ import (
 )
 
 type Config struct {
-	DB            DBConfig
-	HTTP          HTTPConfig
-	Log           LogConfig
-	TelegramToken string
-	OpenRouter    OpenRouterConfig
+	DB               DBConfig
+	HTTP             HTTPConfig
+	Log              LogConfig
+	TelegramToken    string
+	OpenRouter       OpenRouterConfig
+	LLMHistoryWindow int32
 }
 
 type DBConfig struct {
@@ -57,6 +58,7 @@ func Load() (Config, error) {
 			AppURL:  os.Getenv("OPENROUTER_APP_URL"),
 			AppName: os.Getenv("OPENROUTER_APP_NAME"),
 		},
+		LLMHistoryWindow: getEnvInt32("LLM_HISTORY_WINDOW", 20),
 	}
 
 	if cfg.DB.URL == "" {
@@ -85,6 +87,18 @@ func getEnvInt(key string, def int) int {
 		return def
 	}
 	return n
+}
+
+func getEnvInt32(key string, def int32) int32 {
+	v, ok := os.LookupEnv(key)
+	if !ok || v == "" {
+		return def
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n <= 0 {
+		return def
+	}
+	return int32(n)
 }
 
 func getEnvList(key string) []string {

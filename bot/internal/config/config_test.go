@@ -17,6 +17,7 @@ func TestLoad_FromEnv(t *testing.T) {
 	t.Setenv("OPENROUTER_API_KEY", "or-test-key")
 	t.Setenv("OPENROUTER_APP_URL", "https://rollton.com")
 	t.Setenv("OPENROUTER_APP_NAME", "Rollton")
+	t.Setenv("LLM_HISTORY_WINDOW", "25")
 
 	cfg, err := config.Load()
 	require.NoError(t, err)
@@ -30,6 +31,7 @@ func TestLoad_FromEnv(t *testing.T) {
 	require.Equal(t, "or-test-key", cfg.OpenRouter.APIKey)
 	require.Equal(t, "https://rollton.com", cfg.OpenRouter.AppURL)
 	require.Equal(t, "Rollton", cfg.OpenRouter.AppName)
+	require.Equal(t, int32(25), cfg.LLMHistoryWindow)
 }
 
 func TestLoad_AllowedOrigins_EmptyByDefault(t *testing.T) {
@@ -78,4 +80,24 @@ func TestLoad_OpenRouter_EmptyByDefault(t *testing.T) {
 	require.Empty(t, cfg.OpenRouter.APIKey)
 	require.Empty(t, cfg.OpenRouter.AppURL)
 	require.Empty(t, cfg.OpenRouter.AppName)
+}
+
+func TestLoad_LLMHistoryWindow_DefaultsTo20(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://x")
+	t.Setenv("TELEGRAM_TOKEN", "abc")
+	t.Setenv("LLM_HISTORY_WINDOW", "")
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	require.Equal(t, int32(20), cfg.LLMHistoryWindow)
+}
+
+func TestLoad_LLMHistoryWindow_NegativeFallsBackToDefault(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://x")
+	t.Setenv("TELEGRAM_TOKEN", "abc")
+	t.Setenv("LLM_HISTORY_WINDOW", "-5")
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	require.Equal(t, int32(20), cfg.LLMHistoryWindow)
 }
