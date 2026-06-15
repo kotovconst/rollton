@@ -15,6 +15,7 @@ type Config struct {
 	HTTP          HTTPConfig
 	Log           LogConfig
 	TelegramToken string
+	OpenRouter    OpenRouterConfig
 }
 
 type DBConfig struct {
@@ -31,6 +32,12 @@ type LogConfig struct {
 	Format string
 }
 
+type OpenRouterConfig struct {
+	APIKey  string
+	AppURL  string
+	AppName string
+}
+
 // Load reads env vars (and a local `.env` if present in cwd).
 // TELEGRAM_TOKEN is per-process: each cmd/bot-X sets it before calling Load
 // (or relies on the runtime env). DATABASE_URL is shared across bots.
@@ -45,6 +52,11 @@ func Load() (Config, error) {
 		},
 		Log:           LogConfig{Level: getEnvStr("LOG_LEVEL", "info"), Format: getEnvStr("LOG_FORMAT", "json")},
 		TelegramToken: os.Getenv("TELEGRAM_TOKEN"),
+		OpenRouter: OpenRouterConfig{
+			APIKey:  os.Getenv("OPENROUTER_API_KEY"),
+			AppURL:  os.Getenv("OPENROUTER_APP_URL"),
+			AppName: os.Getenv("OPENROUTER_APP_NAME"),
+		},
 	}
 
 	if cfg.DB.URL == "" {

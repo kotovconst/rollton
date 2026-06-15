@@ -14,6 +14,9 @@ func TestLoad_FromEnv(t *testing.T) {
 	t.Setenv("LOG_FORMAT", "text")
 	t.Setenv("TELEGRAM_TOKEN", "abc123")
 	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.rollton.com,https://example.dev")
+	t.Setenv("OPENROUTER_API_KEY", "or-test-key")
+	t.Setenv("OPENROUTER_APP_URL", "https://rollton.com")
+	t.Setenv("OPENROUTER_APP_NAME", "Rollton")
 
 	cfg, err := config.Load()
 	require.NoError(t, err)
@@ -24,6 +27,9 @@ func TestLoad_FromEnv(t *testing.T) {
 	require.Equal(t, "text", cfg.Log.Format)
 	require.Equal(t, "abc123", cfg.TelegramToken)
 	require.Equal(t, []string{"https://app.rollton.com", "https://example.dev"}, cfg.HTTP.AllowedOrigins)
+	require.Equal(t, "or-test-key", cfg.OpenRouter.APIKey)
+	require.Equal(t, "https://rollton.com", cfg.OpenRouter.AppURL)
+	require.Equal(t, "Rollton", cfg.OpenRouter.AppName)
 }
 
 func TestLoad_AllowedOrigins_EmptyByDefault(t *testing.T) {
@@ -58,4 +64,18 @@ func TestLoad_MissingTelegramToken(t *testing.T) {
 	t.Setenv("TELEGRAM_TOKEN", "")
 	_, err := config.Load()
 	require.Error(t, err)
+}
+
+func TestLoad_OpenRouter_EmptyByDefault(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://x")
+	t.Setenv("TELEGRAM_TOKEN", "abc")
+	t.Setenv("OPENROUTER_API_KEY", "")
+	t.Setenv("OPENROUTER_APP_URL", "")
+	t.Setenv("OPENROUTER_APP_NAME", "")
+
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	require.Empty(t, cfg.OpenRouter.APIKey)
+	require.Empty(t, cfg.OpenRouter.AppURL)
+	require.Empty(t, cfg.OpenRouter.AppName)
 }
