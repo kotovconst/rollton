@@ -137,7 +137,10 @@ func (c *Client) Complete(ctx context.Context, req ChatRequest) (ChatResponse, e
 		return ChatResponse{}, errors.Join(ErrUpstream, err)
 	}
 	defer resp.Body.Close()
-	rawBody, _ := io.ReadAll(resp.Body)
+	rawBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return ChatResponse{}, errors.Join(ErrUpstream, fmt.Errorf("read body: %w", err))
+	}
 
 	if resp.StatusCode >= 400 {
 		return ChatResponse{}, mapHTTPError(resp.StatusCode, resp.Header, rawBody)
