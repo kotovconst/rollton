@@ -441,7 +441,7 @@ No live OpenRouter tests in this slice; httptest already covers the client end i
 # Slug "snoop-dogg" → BOT_TOKEN_SNOOP_DOGG (replace `-` with `_`, uppercase).
 # Missing token for an active character = startup failure (fail-fast).
 BOT_TOKEN_SNOOP_DOGG=
-BOT_TOKEN_SHERLOCK=
+BOT_TOKEN_SHERLOCK_HOLMES=
 
 # LLM history window: number of prior tg_messages rows included in each
 # OpenRouter call. Default 20. Global (no per-character override in v1).
