@@ -6,11 +6,23 @@ package postgres
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
+	AssistantReplyExistsAfter(ctx context.Context, arg AssistantReplyExistsAfterParams) (bool, error)
+	GetCharacterByID(ctx context.Context, id pgtype.UUID) (GetCharacterByIDRow, error)
+	GetDefaultContextWithModelForCharacter(ctx context.Context, characterID pgtype.UUID) (GetDefaultContextWithModelForCharacterRow, error)
+	GetMostRecentChatJoinedForUserCharacter(ctx context.Context, arg GetMostRecentChatJoinedForUserCharacterParams) (GetMostRecentChatJoinedForUserCharacterRow, error)
 	GetUserByTelegramID(ctx context.Context, telegramID int64) (User, error)
+	GetUserMessageByTelegramID(ctx context.Context, arg GetUserMessageByTelegramIDParams) (GetUserMessageByTelegramIDRow, error)
+	InsertAssistantMessage(ctx context.Context, arg InsertAssistantMessageParams) error
+	InsertChat(ctx context.Context, arg InsertChatParams) (InsertChatRow, error)
+	InsertUserMessageIdempotent(ctx context.Context, arg InsertUserMessageIdempotentParams) (InsertUserMessageIdempotentRow, error)
 	ListActiveCharacters(ctx context.Context) ([]Character, error)
+	ListRecentMessages(ctx context.Context, arg ListRecentMessagesParams) ([]ListRecentMessagesRow, error)
+	TouchChatUpdatedAt(ctx context.Context, id pgtype.UUID) error
 	UpsertUserFromTelegram(ctx context.Context, arg UpsertUserFromTelegramParams) (User, error)
 }
 
