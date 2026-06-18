@@ -13,7 +13,7 @@ This slice ships the service + two running character bots (Snoop + Sherlock) plu
 - A new shared `services.ChatFlowService.Handle(...)` that does the whole user-msg → LLM → assistant-msg round-trip.
 - A new binary `cmd/characterbots` that loads active characters from the DB on boot, reads each one's bot token from env (`BOT_TOKEN_<UPPER(SLUG)>` with `-` → `_` normalization), and spawns one Telegram long-poll goroutine per character via a `runCharactersBot` function.
 - Persistence of every inbound user turn and every outbound assistant turn into `tg_messages`.
-- Per-chat in-process serialization (one in-flight LLM call per chat).
+- Per-chat ordering relies on the existing `tgbot.Bot.Run` loop being single-threaded per character bot (one update handled to completion before the next is read). No application-level mutex is added.
 - Idempotency against Telegram redelivery via the existing partial unique index on `(chat_id, telegram_message_id)`.
 - Operator-facing structured logs distinguishing the four OpenRouter sentinel classes.
 - User-facing generic error reply when the LLM fails.
@@ -27,7 +27,8 @@ This slice ships the service + two running character bots (Snoop + Sherlock) plu
 - Non-text input handling (stickers, photos, voice, etc.) beyond silent ignore.
 - Cost tracking / spend caps per user.
 - Streaming responses (locked out by the OpenRouter slice's single-response decision).
-- Multi-instance deploys with shared lock state (the per-chat mutex is in-process only; multi-process correctness is explicitly not in scope).
+- Multi-instance / multi-process deployments. Correctness assumes a single `cmd/characterbots` process; concurrent writes from a second process are not handled.
+- Application-level per-chat locking. Ordering is delegated to the existing single-threaded `tgbot.Bot.Run` loop. Any future caller path (TMA write-into-chat, webhook fan-out) should add idempotency-key + cache dedup, not re-introduce an in-memory mutex map.
 - Edit/delete propagation for either side.
 
 ## 3. Architecture overview
@@ -55,7 +56,6 @@ This slice ships the service + two running character bots (Snoop + Sherlock) plu
 │  └─ ChatFlowService.Handle(ctx, user, characterID, text,        │
 │                            tgMessageID, reply) error            │
 │      ├─ findOrCreateChat                                        │
-│      ├─ lock per-chat mutex                                     │
 │      ├─ INSERT user msg (ON CONFLICT DO NOTHING)                │
 │      │   └─ if conflict + assistant reply exists → return       │
 │      │      else continue (crash-before-reply path)             │
@@ -64,7 +64,7 @@ This slice ships the service + two running character bots (Snoop + Sherlock) plu
 │      │   ├─ on sentinel error → reply(genericErr), log, return  │
 │      │   └─ on success → reply(text), INSERT assistant msg,     │
 │      │                   UPDATE chats.updated_at = NOW()        │
-│      └─ release lock                                            │
+│      └─ done                                                    │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -102,7 +102,6 @@ type ChatFlowService struct {
     or         ports.OpenRouterClient
     log        *slog.Logger
     historyN   int32
-    locks      *chatLockMap        // map[uuid.UUID]*sync.Mutex, guarded
 }
 
 // reply is provided by the handler. It sends the given text via Telegram
@@ -128,14 +127,7 @@ The handler chooses the `reply` closure so the service stays free of `tgbotapi`.
    - `q.GetMostRecentChatForUserCharacter(ctx, user.ID, characterID)` → returns chat with joined context + character + model_config.
    - If no row: `q.GetDefaultContextForCharacter(ctx, characterID)` (lowest `position`, `is_active=true`), then `q.InsertChat(ctx, user.ID, ctx.ID)` returning the new chat. Re-resolve joined view.
 
-2. **Acquire per-chat lock.**
-   ```go
-   s.locks.Lock(chat.ID)
-   defer s.locks.Unlock(chat.ID)
-   ```
-   See §8 for the lock map design.
-
-3. **INSERT user message with idempotency.**
+2. **INSERT user message with idempotency.**
    ```sql
    INSERT INTO tg_messages (chat_id, role, content, telegram_message_id)
    VALUES ($1, 'user', $2, $3)
@@ -150,9 +142,9 @@ The handler chooses the `reply` closure so the service stays free of `tgbotapi`.
      - If `true` → already replied; `return nil`.
      - If `false` → crash-before-reply; fetch the existing user msg, continue with the LLM call as normal.
 
-4. **Build the prompt** (§7).
+3. **Build the prompt** (§7).
 
-5. **Call OpenRouter.**
+4. **Call OpenRouter.**
    ```go
    resp, err := s.or.Complete(ctx, openrouter.ChatRequest{
        Model:       modelConfig.Model,
@@ -163,12 +155,12 @@ The handler chooses the `reply` closure so the service stays free of `tgbotapi`.
    })
    ```
 
-6. **On LLM error** (any of `ErrInvalidAuth`, `ErrInsufficientCredits`, `ErrRateLimited`, `ErrUpstream`):
+5. **On LLM error** (any of `ErrInvalidAuth`, `ErrInsufficientCredits`, `ErrRateLimited`, `ErrUpstream`):
    - `s.log.Error("chat_flow.failed", "chat_id", chat.ID, "character_slug", char.Slug, "err_class", classify(err), "api_err", apiErrFields(err))`
    - `_, _ = reply(GenericErrorReply)` — best-effort; swallow send error.
    - `return nil` (caller treats this as handled gracefully).
 
-7. **On LLM success:**
+6. **On LLM success:**
    - `firstChunkID, err := reply(resp.Reply)` — handler does the chunking + send.
    - If `reply` returns error: log, return nil (user already sent their msg; we just have an orphan turn). Don't insert assistant row.
    - `q.InsertAssistantMessage(ctx, chat.ID, resp.Reply, firstChunkID, resp.Model, resp.TokensIn, resp.TokensOut)`
@@ -280,38 +272,17 @@ Rules:
 - The just-inserted user turn is the final entry of `Messages` (it's part of the last-N).
 - No proactive token-budget truncation. If OpenRouter ever returns `ErrUpstream` for "context too long," that's a follow-up.
 
-## 8. Per-chat serialization
+## 8. Per-chat serialization — relied on the bot loop, not app code
 
-In-process mutex map. One mutex per chat-id, allocated on demand:
+`tgbot.Bot.Run` processes updates sequentially per character bot (`<-updates` → `handler(c)` synchronously, then the loop reads the next update). So within one character's goroutine, two `Handle` calls for the same chat cannot overlap.
 
-```go
-type chatLockMap struct {
-    mu    sync.Mutex
-    locks map[uuid.UUID]*sync.Mutex
-}
+Cross-character concurrency exists (different bots run in different goroutines), but no two character bots share a chat row (each chat is bound to one character's context), so cross-character concurrency never targets the same chat.
 
-func (m *chatLockMap) Lock(id uuid.UUID) {
-    m.mu.Lock()
-    l, ok := m.locks[id]
-    if !ok {
-        l = &sync.Mutex{}
-        m.locks[id] = l
-    }
-    m.mu.Unlock()
-    l.Lock()
-}
+This means no application-level mutex is required today. The idempotency-on-Telegram-redelivery case is handled at the DB layer by the partial unique index on `(chat_id, telegram_message_id)`.
 
-func (m *chatLockMap) Unlock(id uuid.UUID) {
-    m.mu.Lock()
-    l := m.locks[id]
-    m.mu.Unlock()
-    l.Unlock()
-}
-```
+**If we ever introduce additional caller paths** (TMA HTTP endpoint into the chat flow, webhook mode, fan-out goroutines in the dispatcher), we should add idempotency-key + cache-based dedup at that boundary rather than re-introducing an in-memory mutex map. That's a separate slice when the need arises.
 
-The map grows unbounded; for v1 that's acceptable (one entry per chat the process has ever seen since start). If chat count ever grows enough to matter, swap in a sharded LRU.
-
-**Explicit non-goal:** cross-process locking. Two `characterbots` processes pointing at the same DB would race. The deployment model is one process; this is documented as a constraint.
+**Explicit non-goal:** cross-process locking. The deployment model is one process; this is documented as a constraint.
 
 ## 9. Bootstrap (`runCharactersBot`)
 
