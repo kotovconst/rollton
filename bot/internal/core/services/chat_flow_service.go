@@ -113,6 +113,12 @@ func (s *chatFlowService) Handle(
 		s.log.Error("chat_flow.tg_send_failed", "chat_id", snap.ChatID, "err", sendErr.Error())
 		return nil
 	}
+	// Known trade-off: if this insert fails, the user has already seen the
+	// reply but no assistant row is persisted. A subsequent redelivery of the
+	// same user message will see no assistant reply via AssistantReplyExistsAfter
+	// and re-call the LLM, producing a second reply. Acceptable because TG
+	// redelivery without a successful ack is rare and a duplicate reply is
+	// less bad than a missing one.
 	if err := s.q.InsertAssistantMessage(ctx, postgres.InsertAssistantMessageParams{
 		ChatID:            pgtype.UUID{Bytes: snap.ChatID, Valid: true},
 		Content:           resp.Reply,
