@@ -33,9 +33,10 @@ func (m *ChatLockMap) Lock(id uuid.UUID) {
 
 func (m *ChatLockMap) Unlock(id uuid.UUID) {
 	m.mu.Lock()
-	l := m.locks[id]
+	l, ok := m.locks[id]
 	m.mu.Unlock()
-	if l != nil {
-		l.Unlock()
+	if !ok {
+		panic("chat_flow_locks: Unlock of unknown id (caller did not Lock first)")
 	}
+	l.Unlock()
 }
