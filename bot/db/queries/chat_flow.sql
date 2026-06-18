@@ -46,9 +46,6 @@ WHERE ctx.character_id = $1 AND ctx.is_active = TRUE
 ORDER BY ctx.position ASC, ctx.created_at ASC
 LIMIT 1;
 
--- name: GetCharacterByID :one
-SELECT id, slug, base_prompt FROM characters WHERE id = $1;
-
 -- name: InsertChat :one
 INSERT INTO chats (user_id, context_id)
 VALUES ($1, $2)

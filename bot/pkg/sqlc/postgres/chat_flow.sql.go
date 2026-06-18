@@ -30,23 +30,6 @@ func (q *Queries) AssistantReplyExistsAfter(ctx context.Context, arg AssistantRe
 	return reply_exists, err
 }
 
-const getCharacterByID = `-- name: GetCharacterByID :one
-SELECT id, slug, base_prompt FROM characters WHERE id = $1
-`
-
-type GetCharacterByIDRow struct {
-	ID         pgtype.UUID `json:"id"`
-	Slug       string      `json:"slug"`
-	BasePrompt string      `json:"base_prompt"`
-}
-
-func (q *Queries) GetCharacterByID(ctx context.Context, id pgtype.UUID) (GetCharacterByIDRow, error) {
-	row := q.db.QueryRow(ctx, getCharacterByID, id)
-	var i GetCharacterByIDRow
-	err := row.Scan(&i.ID, &i.Slug, &i.BasePrompt)
-	return i, err
-}
-
 const getDefaultContextWithModelForCharacter = `-- name: GetDefaultContextWithModelForCharacter :one
 SELECT
     ctx.id          AS context_id,

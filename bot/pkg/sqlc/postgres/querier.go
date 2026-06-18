@@ -12,7 +12,7 @@ import (
 
 type Querier interface {
 	AssistantReplyExistsAfter(ctx context.Context, arg AssistantReplyExistsAfterParams) (bool, error)
-	GetCharacterByID(ctx context.Context, id pgtype.UUID) (GetCharacterByIDRow, error)
+	GetCharacterByID(ctx context.Context, id pgtype.UUID) (Character, error)
 	GetDefaultContextWithModelForCharacter(ctx context.Context, characterID pgtype.UUID) (GetDefaultContextWithModelForCharacterRow, error)
 	GetMostRecentChatJoinedForUserCharacter(ctx context.Context, arg GetMostRecentChatJoinedForUserCharacterParams) (GetMostRecentChatJoinedForUserCharacterRow, error)
 	GetUserByTelegramID(ctx context.Context, telegramID int64) (User, error)

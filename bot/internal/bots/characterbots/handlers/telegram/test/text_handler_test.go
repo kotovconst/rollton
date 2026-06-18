@@ -17,7 +17,7 @@ import (
 	"github.com/kotovconst/rollton/bot/pkg/tgbot"
 )
 
-type fakeChatFlowSvc struct {
+type chatFlowRecorder struct {
 	mu          sync.Mutex
 	calls       int32
 	lastUser    domain.User
@@ -26,21 +26,23 @@ type fakeChatFlowSvc struct {
 	lastTgMsgID int64
 }
 
-func (f *fakeChatFlowSvc) Handle(_ context.Context, u domain.User, charID uuid.UUID, text string, tgMsgID int64, _ ports.ReplyFunc) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	atomic.AddInt32(&f.calls, 1)
-	f.lastUser = u
-	f.lastCharID = charID
-	f.lastText = text
-	f.lastTgMsgID = tgMsgID
-	return nil
+func (r *chatFlowRecorder) handler() ports.ChatFlowHandlerFunc {
+	return func(_ context.Context, u domain.User, charID uuid.UUID, text string, tgMsgID int64, _ ports.ReplyFunc) error {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		atomic.AddInt32(&r.calls, 1)
+		r.lastUser = u
+		r.lastCharID = charID
+		r.lastText = text
+		r.lastTgMsgID = tgMsgID
+		return nil
+	}
 }
 
 func TestTextHandler_DispatchesText(t *testing.T) {
 	charID := uuid.New()
-	svc := &fakeChatFlowSvc{}
-	h := tgh.NewTextHandler(charID, svc)
+	rec := &chatFlowRecorder{}
+	h := tgh.NewTextHandler(charID, rec.handler())
 
 	user := &domain.User{ID: uuid.New(), TelegramID: 99}
 	upd := tgbotapi.Update{
@@ -54,27 +56,27 @@ func TestTextHandler_DispatchesText(t *testing.T) {
 	c := tgbot.NewTestContext(middleware.WithUser(context.Background(), user), upd)
 
 	require.NoError(t, h.Handle(c))
-	require.Equal(t, int32(1), atomic.LoadInt32(&svc.calls))
-	require.Equal(t, user.ID, svc.lastUser.ID)
-	require.Equal(t, charID, svc.lastCharID)
-	require.Equal(t, "hello", svc.lastText)
-	require.Equal(t, int64(5555), svc.lastTgMsgID)
+	require.Equal(t, int32(1), atomic.LoadInt32(&rec.calls))
+	require.Equal(t, user.ID, rec.lastUser.ID)
+	require.Equal(t, charID, rec.lastCharID)
+	require.Equal(t, "hello", rec.lastText)
+	require.Equal(t, int64(5555), rec.lastTgMsgID)
 }
 
 func TestTextHandler_NoMessage_NoOp(t *testing.T) {
-	svc := &fakeChatFlowSvc{}
-	h := tgh.NewTextHandler(uuid.New(), svc)
+	rec := &chatFlowRecorder{}
+	h := tgh.NewTextHandler(uuid.New(), rec.handler())
 
 	upd := tgbotapi.Update{CallbackQuery: &tgbotapi.CallbackQuery{Data: "x"}}
 	c := tgbot.NewTestContext(context.Background(), upd)
 
 	require.NoError(t, h.Handle(c))
-	require.Equal(t, int32(0), atomic.LoadInt32(&svc.calls))
+	require.Equal(t, int32(0), atomic.LoadInt32(&rec.calls))
 }
 
 func TestTextHandler_EmptyText_NoOp(t *testing.T) {
-	svc := &fakeChatFlowSvc{}
-	h := tgh.NewTextHandler(uuid.New(), svc)
+	rec := &chatFlowRecorder{}
+	h := tgh.NewTextHandler(uuid.New(), rec.handler())
 
 	user := &domain.User{ID: uuid.New(), TelegramID: 99}
 	upd := tgbotapi.Update{
@@ -88,12 +90,12 @@ func TestTextHandler_EmptyText_NoOp(t *testing.T) {
 	c := tgbot.NewTestContext(middleware.WithUser(context.Background(), user), upd)
 
 	require.NoError(t, h.Handle(c))
-	require.Equal(t, int32(0), atomic.LoadInt32(&svc.calls))
+	require.Equal(t, int32(0), atomic.LoadInt32(&rec.calls))
 }
 
 func TestTextHandler_NoUserInContext_NoOp(t *testing.T) {
-	svc := &fakeChatFlowSvc{}
-	h := tgh.NewTextHandler(uuid.New(), svc)
+	rec := &chatFlowRecorder{}
+	h := tgh.NewTextHandler(uuid.New(), rec.handler())
 
 	upd := tgbotapi.Update{
 		Message: &tgbotapi.Message{
@@ -106,5 +108,5 @@ func TestTextHandler_NoUserInContext_NoOp(t *testing.T) {
 	c := tgbot.NewTestContext(context.Background(), upd)
 
 	require.NoError(t, h.Handle(c))
-	require.Equal(t, int32(0), atomic.LoadInt32(&svc.calls))
+	require.Equal(t, int32(0), atomic.LoadInt32(&rec.calls))
 }

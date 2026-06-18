@@ -13,6 +13,7 @@ import (
 	"github.com/kotovconst/rollton/bot/internal/bots/characterbots"
 	"github.com/kotovconst/rollton/bot/internal/config"
 	"github.com/kotovconst/rollton/bot/internal/core/services"
+	"github.com/kotovconst/rollton/bot/internal/core/usecase"
 	"github.com/kotovconst/rollton/bot/pkg/openrouter"
 )
 
@@ -42,18 +43,31 @@ func main() {
 	cancelPing()
 
 	userSvc := services.NewUserService(pool)
+	characterSvc := services.NewCharacterService(pool)
+	chatSvc := services.NewChatService(pool)
+	contextSvc := services.NewContextService(pool)
+	messageSvc := services.NewMessageService(pool)
 	orClient := openrouter.New(
 		cfg.OpenRouter.APIKey,
 		openrouter.WithApp(cfg.OpenRouter.AppURL, cfg.OpenRouter.AppName),
 	)
-	chatFlowSvc := services.NewChatFlowService(pool, orClient, cfg.LLMHistoryWindow, log)
+
+	chatFlowHandler := usecase.NewChatFlowHandler(usecase.ChatFlowDeps{
+		Chats:      chatSvc,
+		Messages:   messageSvc,
+		Contexts:   contextSvc,
+		Characters: characterSvc,
+		OR:         orClient,
+		HistoryN:   cfg.LLMHistoryWindow,
+		Log:        log,
+	})
 
 	if err := characterbots.Run(ctx, characterbots.Deps{
-		Cfg:         cfg,
-		Log:         log,
-		Pool:        pool,
-		UserSvc:     userSvc,
-		ChatFlowSvc: chatFlowSvc,
+		Cfg:             cfg,
+		Log:             log,
+		Pool:            pool,
+		UserSvc:         userSvc,
+		ChatFlowHandler: chatFlowHandler,
 	}); err != nil && err != context.Canceled {
 		log.Error("characterbots_run_failed", "err", err)
 		os.Exit(1)

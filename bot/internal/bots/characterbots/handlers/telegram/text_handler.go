@@ -9,15 +9,15 @@ import (
 	"github.com/kotovconst/rollton/bot/pkg/tgbot"
 )
 
-// TextHandler dispatches inbound text messages to ChatFlowService.
+// TextHandler dispatches inbound text messages to the chat-flow usecase.
 // One instance per character (holds the character id).
 type TextHandler struct {
 	characterID uuid.UUID
-	svc         ports.ChatFlowService
+	handler     ports.ChatFlowHandlerFunc
 }
 
-func NewTextHandler(characterID uuid.UUID, svc ports.ChatFlowService) *TextHandler {
-	return &TextHandler{characterID: characterID, svc: svc}
+func NewTextHandler(characterID uuid.UUID, handler ports.ChatFlowHandlerFunc) *TextHandler {
+	return &TextHandler{characterID: characterID, handler: handler}
 }
 
 func (h *TextHandler) Handle(c *tgbot.Context) error {
@@ -33,7 +33,7 @@ func (h *TextHandler) Handle(c *tgbot.Context) error {
 		return sendReply(c, msg.Chat.ID, text)
 	}
 	return tgbot.WithTyping(c, func() error {
-		return h.svc.Handle(c.Ctx(), *u, h.characterID, msg.Text, int64(msg.MessageID), reply)
+		return h.handler(c.Ctx(), *u, h.characterID, msg.Text, int64(msg.MessageID), reply)
 	})
 }
 

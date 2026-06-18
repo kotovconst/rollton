@@ -7,7 +7,32 @@ package postgres
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const getCharacterByID = `-- name: GetCharacterByID :one
+SELECT id, slug, name, blurb, avatar_url, base_prompt, bot_username, is_active, position, created_at, updated_at FROM characters WHERE id = $1
+`
+
+func (q *Queries) GetCharacterByID(ctx context.Context, id pgtype.UUID) (Character, error) {
+	row := q.db.QueryRow(ctx, getCharacterByID, id)
+	var i Character
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.Name,
+		&i.Blurb,
+		&i.AvatarUrl,
+		&i.BasePrompt,
+		&i.BotUsername,
+		&i.IsActive,
+		&i.Position,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
 
 const listActiveCharacters = `-- name: ListActiveCharacters :many
 SELECT id, slug, name, blurb, avatar_url, base_prompt, bot_username, is_active, position, created_at, updated_at FROM characters

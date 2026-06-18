@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/kotovconst/rollton/bot/internal/core/domain"
 	"github.com/kotovconst/rollton/bot/internal/core/ports"
 	"github.com/kotovconst/rollton/bot/pkg/sqlc/postgres"
@@ -28,4 +31,12 @@ func (s *characterService) ListActive(ctx context.Context) ([]domain.Character, 
 		out = append(out, domain.NewCharacterFromPostgresRow(row))
 	}
 	return out, nil
+}
+
+func (s *characterService) GetByID(ctx context.Context, id uuid.UUID) (domain.Character, error) {
+	row, err := s.queries.GetCharacterByID(ctx, pgtype.UUID{Bytes: id, Valid: true})
+	if err != nil {
+		return domain.Character{}, err
+	}
+	return domain.NewCharacterFromPostgresRow(row), nil
 }

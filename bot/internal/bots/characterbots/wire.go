@@ -24,11 +24,11 @@ import (
 )
 
 type Deps struct {
-	Cfg         config.Config
-	Log         *slog.Logger
-	Pool        *pgxpool.Pool
-	UserSvc     ports.UserService
-	ChatFlowSvc ports.ChatFlowService
+	Cfg             config.Config
+	Log             *slog.Logger
+	Pool            *pgxpool.Pool
+	UserSvc         ports.UserService
+	ChatFlowHandler ports.ChatFlowHandlerFunc
 }
 
 // Run loads active characters from DB, starts one Telegram long-poll goroutine
@@ -60,7 +60,7 @@ func Run(ctx context.Context, deps Deps) error {
 		bot.Use(middleware.Telegram(deps.Log))
 		bot.Use(middleware.EnsureUserRegistered(deps.UserSvc, deps.Log))
 
-		th := tgh.NewTextHandler(uuidFromPg(ch.ID), deps.ChatFlowSvc)
+		th := tgh.NewTextHandler(uuidFromPg(ch.ID), deps.ChatFlowHandler)
 		bot.Router().HandleDefault(th.Handle)
 
 		deps.Log.Info("character.started",
