@@ -268,6 +268,7 @@ const insertUserMessageIdempotent = `-- name: InsertUserMessageIdempotent :one
 INSERT INTO tg_messages (chat_id, role, content, telegram_message_id)
 VALUES ($1, 'user', $2, $3)
 ON CONFLICT (chat_id, telegram_message_id)
+    WHERE telegram_message_id IS NOT NULL
 DO NOTHING
 RETURNING id, created_at
 `
