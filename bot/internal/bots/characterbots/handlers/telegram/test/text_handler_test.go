@@ -6,8 +6,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/google/uuid"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	tgh "github.com/kotovconst/rollton/bot/internal/bots/characterbots/handlers/telegram"
