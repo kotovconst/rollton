@@ -40,8 +40,12 @@ type OpenRouterConfig struct {
 }
 
 // Load reads env vars (and a local `.env` if present in cwd).
-// TELEGRAM_TOKEN is per-process: each cmd/bot-X sets it before calling Load
-// (or relies on the runtime env). DATABASE_URL is shared across bots.
+//
+// DATABASE_URL is required for every binary that calls Load. TELEGRAM_TOKEN is
+// only required by binaries that build a tgbot.Bot directly from it
+// (rolltonchatbot, admin); those will error from tgbot.New("") if missing.
+// cmd/characterbots reads tokens per-character from BOT_TOKEN_<UPPER(slug)>
+// and tolerates an empty TELEGRAM_TOKEN.
 func Load() (Config, error) {
 	_ = godotenv.Load() // ignore: missing .env is fine in prod
 
@@ -63,9 +67,6 @@ func Load() (Config, error) {
 
 	if cfg.DB.URL == "" {
 		return Config{}, errors.New("config: DATABASE_URL is required")
-	}
-	if cfg.TelegramToken == "" {
-		return Config{}, errors.New("config: TELEGRAM_TOKEN is required")
 	}
 	return cfg, nil
 }

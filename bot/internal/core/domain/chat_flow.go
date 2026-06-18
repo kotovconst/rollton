@@ -68,3 +68,16 @@ type RecentMessage struct {
 	Content   string
 	CreatedAt time.Time
 }
+
+// ChatFlowErrClass labels the cause of a failed LLM round-trip for log
+// aggregation and ops alerting. It is a closed set; the unknown value is the
+// catch-all for non-sentinel errors.
+type ChatFlowErrClass string
+
+const (
+	ChatFlowErrUnknown             ChatFlowErrClass = "unknown"
+	ChatFlowErrInvalidAuth         ChatFlowErrClass = "invalid_auth"
+	ChatFlowErrInsufficientCredits ChatFlowErrClass = "insufficient_credits"
+	ChatFlowErrRateLimited         ChatFlowErrClass = "rate_limited"
+	ChatFlowErrUpstream            ChatFlowErrClass = "upstream"
+)

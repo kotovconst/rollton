@@ -61,11 +61,14 @@ func TestLoad_MissingDatabaseURL(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestLoad_MissingTelegramToken(t *testing.T) {
+func TestLoad_EmptyTelegramToken_OK(t *testing.T) {
+	// TELEGRAM_TOKEN is optional at config time; cmd/characterbots reads tokens
+	// per-character from BOT_TOKEN_<UPPER(slug)> and does not need this var.
 	t.Setenv("DATABASE_URL", "postgres://x")
 	t.Setenv("TELEGRAM_TOKEN", "")
-	_, err := config.Load()
-	require.Error(t, err)
+	cfg, err := config.Load()
+	require.NoError(t, err)
+	require.Empty(t, cfg.TelegramToken)
 }
 
 func TestLoad_OpenRouter_EmptyByDefault(t *testing.T) {

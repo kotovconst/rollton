@@ -100,8 +100,14 @@ func (s *chatFlowService) Handle(
 		Messages:    buildMessages(snap, hist),
 	})
 	if callErr != nil {
+		if errors.Is(callErr, context.Canceled) || errors.Is(callErr, context.DeadlineExceeded) {
+			s.log.Warn("chat_flow.cancelled",
+				"chat_id", snap.ChatID, "character_slug", snap.CharacterSlug, "err", callErr.Error())
+			return nil
+		}
 		s.log.Error("chat_flow.failed",
-			"chat_id", snap.ChatID, "character_slug", snap.CharacterSlug, "err", callErr.Error())
+			"chat_id", snap.ChatID, "character_slug", snap.CharacterSlug,
+			"err_class", classifyOpenRouterErr(callErr), "err", callErr.Error())
 		if _, rerr := reply(GenericErrorReply); rerr != nil {
 			s.log.Error("chat_flow.tg_send_failed", "chat_id", snap.ChatID, "err", rerr.Error())
 		}
@@ -197,6 +203,22 @@ func mapRole(r string) openrouter.Role {
 		return openrouter.RoleAssistant
 	}
 	return ""
+}
+
+// classifyOpenRouterErr maps an OpenRouter call error to a domain enum.
+func classifyOpenRouterErr(err error) domain.ChatFlowErrClass {
+	switch {
+	case errors.Is(err, openrouter.ErrInvalidAuth):
+		return domain.ChatFlowErrInvalidAuth
+	case errors.Is(err, openrouter.ErrInsufficientCredits):
+		return domain.ChatFlowErrInsufficientCredits
+	case errors.Is(err, openrouter.ErrRateLimited):
+		return domain.ChatFlowErrRateLimited
+	case errors.Is(err, openrouter.ErrUpstream):
+		return domain.ChatFlowErrUpstream
+	default:
+		return domain.ChatFlowErrUnknown
+	}
 }
 
 func ptrInt32ToInt(p *int32) *int {
