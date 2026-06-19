@@ -44,8 +44,8 @@ test: ## Run unit tests (excludes integration)
 	$(GO) test -race -short ./...
 
 .PHONY: test-integration
-test-integration: ## Run all tests including integration (testcontainers)
-	$(GO) test -race ./...
+test-integration: ## Run integration tests (requires dev Postgres up + migrated)
+	$(GO) test -race -tags=integration -count=1 ./...
 
 .PHONY: coverage
 coverage: ## Generate coverage report
